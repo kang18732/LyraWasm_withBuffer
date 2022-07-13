@@ -36,7 +36,6 @@
 #include "audio/dsp/signal_vector_util.h"
 #include "dsp_util.h"
 #include "generative_model_interface.h"
-#include "glog/logging.h"
 #include "include/ghc/filesystem.hpp"
 #include "log_mel_spectrogram_extractor_impl.h"
 #include "lyra_config.h"
@@ -83,7 +82,7 @@ void PrintStatsAndWriteCSV(const std::vector<int64_t>& timings,
   const std::string stats_string = absl::Substitute(
       stats_template, title, stats.num_calls, stats.max_microsecs,
       stats.min_microsecs, stats.mean_microsecs, stats.standard_deviation);
-  LOG(INFO) << stats_string;
+  fprintf(stderr, "%s\n", stats_string.c_str());
 
 #if !defined __arm__ && !defined __aarch64__
   const ghc::filesystem::path output_dir("/tmp/benchmarks/");
@@ -105,7 +104,7 @@ int benchmark_decode(const int num_cond_vectors,
   const std::string model_path =
       chromemedia::codec::GetCompleteArchitecturePath(model_base_path);
   if (num_cond_vectors <= 0) {
-    LOG(ERROR) << "The number of conditioning vectors has to be positive.";
+    fprintf(stderr, "The number of conditioning vectors has to be positive.\n");
     return -1;
   }
 
@@ -141,7 +140,7 @@ int benchmark_decode(const int num_cond_vectors,
     auto features_or =
         feature_extractor->Extract(absl::MakeConstSpan(random_audio));
     if (!features_or.has_value()) {
-      LOG(ERROR) << "Could not create random features to give model.";
+      fprintf(stderr, "Could not create random features to give model.\n");
       return -1;
     }
     model->AddFeatures(features_or.value());
@@ -162,11 +161,11 @@ int benchmark_decode(const int num_cond_vectors,
   auto model_timings = model->model_timings_microsecs();
 
 #ifdef USE_FIXED16
-  LOG(INFO) << "Using fixed point arithmetic.";
+  fprintf(stderr, "Using fixed point arithmetic.\n");
 #elif USE_BFLOAT16
-  LOG(INFO) << "Using bfloat arithmetic.";
+  fprintf(stderr, "Using bfloat arithmetic.\n");
 #else
-  LOG(INFO) << "Using float arithmetic.";
+  fprintf(stderr, "Using float arithmetic.\n");
 #endif  // USE_FIXED16
 
   std::vector<int64_t> combined_timings;

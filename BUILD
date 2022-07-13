@@ -1,6 +1,5 @@
 # [internal] load cc_fuzz_target.bzl
 # [internal] load cc_proto_library.bzl
-# [internal] load android_cc_test:def.bzl
 
 package(default_visibility = [":__subpackages__"])
 
@@ -9,9 +8,7 @@ licenses(["notice"])
 # To run all cc_tests in this directory:
 # bazel test //:all
 
-# [internal] Command to run dsp_util_android_test.
 
-# [internal] Command to run lyra_integration_android_test.
 
 exports_files(["LICENSE"])
 
@@ -30,11 +27,6 @@ exports_files(
         "lyra_encoder.cc",
         "lyra_encoder.h",
     ],
-)
-
-config_setting(
-    name = "android_config",
-    values = {"crosstool_top": "//external:android/crosstool"},
 )
 
 cc_library(
@@ -139,9 +131,44 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@com_google_audio_dsp//audio/dsp:signal_vector_util",
-        "@com_google_glog//:glog",
         "@gulrak_filesystem//:filesystem",
     ],
+)
+
+cc_library(
+    name = "encode_and_decode_lib",
+    srcs = ["encode_and_decode_lib.cc"],
+    hdrs = ["encode_and_decode_lib.h"],
+    data = [
+        "//testdata:48khz_playback.wav"
+    ],
+    deps = [
+        ":lyra_encoder",
+        ":lyra_decoder",
+        ":packet",
+        ":gilbert_model",
+        ":packet_loss_handler_interface",
+        ":lyra_config",
+        ":wav_util",
+        ":runfiles_util",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_binary(
+    name = "encode_and_decode",
+    srcs = ["encode_and_decode_main.cc"],
+    deps = [":encode_and_decode_lib",
+    ],
+    )
+
+cc_library(
+    name = "runfiles_util",
+    hdrs = ["runfiles_util.h"],
+    deps = ["@bazel_tools//tools/cpp/runfiles"],
 )
 
 cc_library(
@@ -830,7 +857,6 @@ cc_binary(
         "encoder_main.cc",
     ],
     linkopts = select({
-        ":android_config": ["-landroid"],
         "//conditions:default": [],
     }),
     deps = [
@@ -851,7 +877,6 @@ cc_binary(
         "decoder_main.cc",
     ],
     linkopts = select({
-        ":android_config": ["-landroid"],
         "//conditions:default": [],
     }),
     deps = [
@@ -872,7 +897,6 @@ cc_binary(
         "benchmark_decode.cc",
     ],
     linkopts = select({
-        ":android_config": ["-landroid"],
         "//conditions:default": [],
     }),
     deps = [
@@ -1544,14 +1568,6 @@ cc_test(
 filegroup(
     name = "wavegru_testdata",
     data = glob([
-        "wavegru/*.gz",
-        "wavegru/*.textproto",
-    ]),
-)
-
-filegroup(
-    name = "android_example_assets",
-    srcs = glob([
         "wavegru/*.gz",
         "wavegru/*.textproto",
     ]),
