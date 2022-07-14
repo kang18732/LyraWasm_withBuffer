@@ -73,7 +73,10 @@ class GruGates : public MatmulBase {
                       const SampleType* ar_sample2 = nullptr,
                       const SampleWeightType* ar_2_weights = nullptr,
                       const InputType* gru_recurrent_other_ptr = nullptr) {
-    CHECK_EQ(num_replicas, 1) << "Generic code should always have 1 replica";
+    if (num_replicas != 1) {
+     std::cerr << "Generic code should always have 1 replica" << std::endl;
+     exit(EXIT_FAILURE);
+    }
     GoThroughGates<GRUStateType, InputType, SampleWeightType, SampleType,
                    kInputsMode, kSplitGates>(
         start, end, ar_01_weights, gru_recurrent_ptr, gru_recurrent_other_ptr,
@@ -113,7 +116,7 @@ class GruGates<float, float, float> : public MatmulBase {
                       const float* ar_sample2 = nullptr,
                       const float* ar_2_weights = nullptr,
                       const float* gru_recurrent_other_data = nullptr) {
-    DCHECK_EQ(num_replicas, 1) << "ARM code should always have 1 replica";
+    //DCHECK_EQ(num_replicas, 1) << "ARM code should always have 1 replica";
     GoThroughGatesFloat<kInputsMode, kSplitGates>(
         start, end, ar_01_weights, gru_recurrent_data, gru_recurrent_other_data,
         input_data, gru_state_data, ar_2_weights, state_size, ar_sample0,
@@ -185,21 +188,27 @@ class GruGates<fixed16<kGRUStateBits>, fixed32<kInputBits>,
       }
     }
 #if defined __AVX2__
-    CHECK(using_avx2_) << "Compiled for AVX2, but cpu flag not set!";
+    if (!using_avx2_) {
+      std::cout << "Compiled for AVX2, but cpu flag not set!" << std::endl;
+        exit(1);
+    }
     GruGatesAVXFixed<kInputMantissaBits, kStateMantissaBits, kInputsMode,
                      kSplitGates>(
         start, end, state_size, gru_recurrent_ptr, input_ptr, &ar_sample01,
         ar_01_weights, num_replicas, replica_stride, &ar_sample2_float,
         ar_2_weights, gru_recurrent_other_ptr, gru_state_ptr);
 #else   // ARM.
-    DCHECK_EQ(num_replicas, 1) << "ARM code should always have 1 replica";
+    //DCHECK_EQ(num_replicas, 1) << "ARM code should always have 1 replica";
     GoThroughGatesFixed<GRUStateType, InputType, kInputsMode, kSplitGates>(
         start, end, ar_01_weights, gru_recurrent_ptr, gru_recurrent_other_ptr,
         input_ptr, gru_state_ptr, ar_2_weights, state_size, &ar_sample01,
         &ar_sample2_float);
 #endif  // __AVX2__ / ARM.
 #else   // Generic case.
-    CHECK_EQ(num_replicas, 1) << "Generic code should always have 1 replica";
+    if (num_replicas != 1) {
+      std::cout << "Generic code should always have 1 replica" << std::endl;
+      exit(EXIT_FAILURE);
+    }
     GoThroughGates<GRUStateType, InputType, SampleWeightType, SampleType,
                    kInputsMode, kSplitGates>(
         start, end, ar_01_weights, gru_recurrent_data, gru_recurrent_other_data,

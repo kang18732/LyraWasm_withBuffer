@@ -21,7 +21,6 @@
 #include "audio/linear_filters/biquad_filter.h"
 #include "audio/linear_filters/biquad_filter_coefficients.h"
 #include "dsp_util.h"
-#include "glog/logging.h"
 
 namespace chromemedia {
 namespace codec {
@@ -55,9 +54,11 @@ SplitQuadratureMirrorFilter<T>::SplitQuadratureMirrorFilter() {
 
 template <typename T>
 Bands<T> SplitQuadratureMirrorFilter<T>::Split(absl::Span<const T> signal) {
-  CHECK_EQ(signal.size() % 2, 0)
-      << "The number of samples has to be even, but was " << signal.size()
-      << ".";
+  if (signal.size() % 2 != 0) {
+    fprintf(stderr, "The number of samples has to be even, but was %d.\n",
+            static_cast<int>(signal.size()));
+    exit(EXIT_FAILURE);
+  }
   float all_pass_out_1, all_pass_out_2;
   Bands<T> bands(signal.size() / 2);
   for (int i = 0; i < bands.num_samples_per_band; ++i) {
@@ -85,14 +86,23 @@ MergeQuadratureMirrorFilter<T>::MergeQuadratureMirrorFilter() {
 
 template <typename T>
 std::vector<T> MergeQuadratureMirrorFilter<T>::Merge(const Bands<T>& bands) {
-  CHECK_EQ(bands.low_band.size(), bands.num_samples_per_band)
-      << "The number of samples of all bands has to be "
-      << bands.num_samples_per_band << ", but was " << bands.low_band.size()
-      << " for the low band.";
-  CHECK_EQ(bands.high_band.size(), bands.num_samples_per_band)
-      << "The number of samples of all bands has to be "
-      << bands.num_samples_per_band << ", but was " << bands.high_band.size()
-      << " for the high band.";
+  if (bands.low_band.size() != bands.num_samples_per_band) {
+    fprintf(stderr,
+            "The number of samples of all bands has to be "
+            "%d but was %d.\n",
+            static_cast<int>(bands.num_samples_per_band),
+            static_cast<int>(bands.low_band.size()));
+    exit(EXIT_FAILURE);
+  }
+  if (bands.high_band.size() != bands.num_samples_per_band) {
+    fprintf(stderr,
+            "The number of samples of all bands has to be "
+            "%d but was %d.\n",
+            static_cast<int>(bands.num_samples_per_band),
+            static_cast<int>(bands.high_band.size()));
+    exit(EXIT_FAILURE);
+  }
+
   float all_pass_out_1, all_pass_out_2;
   std::vector<T> merged_signal;
   merged_signal.reserve(2 * bands.num_samples_per_band);

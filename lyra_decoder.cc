@@ -29,7 +29,6 @@
 #include "absl/types/span.h"
 #include "comfort_noise_generator.h"
 #include "generative_model_interface.h"
-#include "glog/logging.h"
 #include "include/ghc/filesystem.hpp"
 #include "lyra_components.h"
 #include "lyra_config.h"
@@ -49,7 +48,7 @@ std::unique_ptr<LyraDecoder> LyraDecoder::Create(
   absl::Status are_params_supported =
       AreParamsSupported(sample_rate_hz, num_channels, bitrate, model_path);
   if (!are_params_supported.ok()) {
-    LOG(ERROR) << are_params_supported;
+    std::cerr << are_params_supported << std::endl;
     return nullptr;
   }
 
@@ -58,7 +57,7 @@ std::unique_ptr<LyraDecoder> LyraDecoder::Create(
                                      kNumExpectedOutputFeatures,
                                      kNumFramesPerPacket, model_path);
   if (model == nullptr) {
-    LOG(ERROR) << "New model could not be instantiated.";
+    std::cerr << "New model could not be instantiated." << std::endl;
     return nullptr;
   }
 
@@ -68,7 +67,7 @@ std::unique_ptr<LyraDecoder> LyraDecoder::Create(
       GetNumSamplesPerFrame(kInternalSampleRateHz),
       GetNumSamplesPerHop(kInternalSampleRateHz));
   if (comfort_noise_generator == nullptr) {
-    LOG(ERROR) << "Could not create Comfort Noise Generator.";
+    std::cerr << "Could not create Comfort Noise Generator." << std::endl;
     return nullptr;
   }
 
@@ -77,7 +76,7 @@ std::unique_ptr<LyraDecoder> LyraDecoder::Create(
       CreateQuantizer(kNumFramesPerPacket * kNumExpectedOutputFeatures,
                       kNumQuantizationBits, model_path);
   if (vector_quantizer == nullptr) {
-    LOG(ERROR) << "Could not create Vector Quantizer.";
+    std::cerr << "Could not create Vector Quantizer.";
     return nullptr;
   }
 
@@ -89,7 +88,7 @@ std::unique_ptr<LyraDecoder> LyraDecoder::Create(
       static_cast<float>(GetNumSamplesPerHop(kInternalSampleRateHz)) /
           kInternalSampleRateHz);
   if (packet_loss_handler == nullptr) {
-    LOG(ERROR) << "Could not create Packet Loss Handler.";
+    std::cerr << "Could not create Packet Loss Handler.";
     return nullptr;
   }
 
@@ -97,7 +96,7 @@ std::unique_ptr<LyraDecoder> LyraDecoder::Create(
   // requested |sample_rate_hz|.
   auto resampler = Resampler::Create(kInternalSampleRateHz, sample_rate_hz);
   if (resampler == nullptr) {
-    LOG(ERROR) << "Could not create Resampler.";
+    std::cerr << "Could not create Resampler.";
     return nullptr;
   }
 
@@ -133,14 +132,14 @@ LyraDecoder::LyraDecoder(
 
 bool LyraDecoder::SetEncodedPacket(absl::Span<const uint8_t> encoded) {
   if (encoded.size() != kPacketSize) {
-    LOG(ERROR) << "The number of bytes has to equal to " << kPacketSize
-               << ", but is " << encoded.size() << ".";
+    std::cerr << "The number of bytes has to equal to " << kPacketSize
+              << ", but is " << encoded.size() << ".";
     return false;
   }
 
   const auto unpacked_or = packet_->UnpackPacket(encoded);
   if (!unpacked_or.has_value()) {
-    LOG(ERROR) << "Couldn't read Lyra packet for decoding.";
+    std::cerr << "Couldn't read Lyra packet for decoding.";
     return false;
   }
 
@@ -153,7 +152,7 @@ bool LyraDecoder::SetEncodedPacket(absl::Span<const uint8_t> encoded) {
         concatenated_features.begin() + num_features * i,
         concatenated_features.begin() + num_features * (i + 1));
     if (!packet_loss_handler_->SetReceivedFeatures(features)) {
-      LOG(ERROR) << "Unable to update packet loss handler.";
+      std::cerr << "Unable to update packet loss handler.";
       return false;
     }
 
@@ -171,22 +170,22 @@ absl::optional<std::vector<int16_t>> LyraDecoder::DecodeSamples(
   const int external_num_samples_available = ConvertNumSamplesBetweenSampleRate(
       internal_num_samples_available_, kInternalSampleRateHz, sample_rate_hz_);
   if (num_samples > external_num_samples_available) {
-    LOG(ERROR) << "Requested " << num_samples
-               << " samples for decoding but only "
-               << external_num_samples_available
-               << " remain in the current frame.";
+    std::cerr << "Requested " << num_samples
+              << " samples for decoding but only "
+              << external_num_samples_available
+              << " remain in the current frame.";
     return absl::nullopt;
   }
   if (!encoded_packet_set_) {
-    LOG(ERROR) << "Requesting normal decoding without adding "
-                  "an encoded packet.";
+    std::cerr << "Requesting normal decoding without adding "
+                 "an encoded packet.";
     return absl::nullopt;
   }
   const int internal_num_samples = ConvertNumSamplesBetweenSampleRate(
       num_samples, sample_rate_hz_, kInternalSampleRateHz);
   auto audio_or = generative_model_->GenerateSamples(internal_num_samples);
   if (!audio_or.has_value()) {
-    LOG(ERROR) << "Couldn't generate audio samples.";
+    std::cerr << "Couldn't generate audio samples.";
     return absl::nullopt;
   }
   internal_num_samples_available_ -= audio_or->size();
@@ -197,7 +196,7 @@ absl::optional<std::vector<int16_t>> LyraDecoder::DecodeSamples(
     auto estimated_features_or =
         packet_loss_handler_->EstimateLostFeatures(internal_num_samples);
     if (!estimated_features_or.has_value()) {
-      LOG(ERROR) << "Unable to estimate lost features.";
+      std::cerr << "Unable to estimate lost features.";
       return absl::nullopt;
     }
     audio_or = RunComfortNoiseGeneratorWithNecessaryOverlap(
@@ -213,7 +212,11 @@ absl::optional<std::vector<int16_t>> LyraDecoder::DecodeSamples(
   if (sample_rate_hz_ != kInternalSampleRateHz) {
     audio_or = resampler_->Resample(audio_or.value());
   }
-  CHECK_EQ(audio_or->size(), num_samples);
+  if (audio_or->size() != num_samples) {
+    std::cerr << "Generated audio samples have a different number of samples "
+                 "than requested.";
+    exit(EXIT_FAILURE);
+  }
 
   return audio_or;
 }
@@ -225,7 +228,7 @@ absl::optional<std::vector<int16_t>> LyraDecoder::DecodePacketLoss(
   auto audio_or = RunGenerativeModelForPacketLoss(internal_num_samples);
 
   if (!audio_or.has_value()) {
-    LOG(ERROR) << "Couldn't generate audio samples.";
+    std::cerr << "Couldn't generate audio samples.";
     return absl::nullopt;
   }
   if (sample_rate_hz_ != kInternalSampleRateHz) {
@@ -242,7 +245,7 @@ LyraDecoder::RunGenerativeModelForPacketLoss(int num_samples) {
   const auto estimated_features_or =
       packet_loss_handler_->EstimateLostFeatures(num_samples);
   if (!estimated_features_or.has_value()) {
-    LOG(ERROR) << "Unable to estimate lost features.";
+    std::cerr << "Unable to estimate lost features.";
     return absl::nullopt;
   }
 
@@ -278,15 +281,23 @@ LyraDecoder::RunGenerativeModelForPacketLoss(int num_samples) {
     const auto audio_or =
         generative_model_->GenerateSamples(num_samples_to_decode);
     if (!audio_or.has_value()) {
-      LOG(ERROR) << "Model could not be run on features.";
+      std::cerr << "Model could not be run on features.";
       return absl::nullopt;
     }
     result.insert(result.end(), audio_or->begin(), audio_or->end());
 
-    CHECK_LE(audio_or->size(), internal_num_samples_available_);
+    if (audio_or->size() > internal_num_samples_available_) {
+      std::cerr << "Generated audio samples have a larger number of samples "
+                   "than available.";
+      exit(EXIT_FAILURE);
+    }
     internal_num_samples_available_ -= audio_or->size();
   }
-  CHECK_EQ(result.size(), num_samples);
+  if (result.size() != num_samples) {
+    std::cerr << "Generated audio samples have a different number of samples "
+                 "than requested.";
+    exit(EXIT_FAILURE);
+  }
 
   // Implies a transition between models, which requires overlap.
   if (current_frame_is_comfort_noise) {
@@ -307,10 +318,14 @@ LyraDecoder::RunComfortNoiseGeneratorWithNecessaryOverlap(
   const auto comfort_noise_or =
       comfort_noise_generator_->GenerateSamples(num_samples);
   if (!comfort_noise_or.has_value()) {
-    LOG(ERROR) << "Comfort noise generator could not be run on features.";
+    std::cerr << "Comfort noise generator could not be run on features.";
     return absl::nullopt;
   }
-  CHECK_EQ(comfort_noise_or->size(), num_samples);
+  if (comfort_noise_or->size() != num_samples) {
+    std::cerr << "Comfort noise generator generated audio samples with a "
+                 "different number of samples than requested." << std::endl;
+    exit(EXIT_FAILURE);
+  }
 
   if (overlap_required) {
     // If overlap is required, a model transition is guaranteed. The direction
@@ -336,10 +351,10 @@ absl::optional<std::vector<int16_t>> LyraDecoder::OverlapFrames(
     const std::vector<int16_t>& preceding_frame,
     const std::vector<int16_t>& following_frame) const {
   if (preceding_frame.size() != following_frame.size()) {
-    LOG(ERROR) << "Overlapped frame could not be computed because frame sizes "
-                  "differed. Preceding frame size was "
-               << preceding_frame.size() << " and following frame size was "
-               << following_frame.size() << ".";
+    std::cerr << "Overlapped frame could not be computed because frame sizes "
+                 "differed. Preceding frame size was "
+              << preceding_frame.size() << " and following frame size was "
+              << following_frame.size() << ".";
     return absl::nullopt;
   }
 

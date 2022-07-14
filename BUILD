@@ -3,6 +3,8 @@
 
 package(default_visibility = [":__subpackages__"])
 
+load("@emsdk//emscripten_toolchain:wasm_rules.bzl", "wasm_cc_binary")
+
 licenses(["notice"])
 
 # To run all cc_tests in this directory:
@@ -29,6 +31,31 @@ exports_files(
     ],
 )
 
+WASM_LINKOPTS = [
+ "--bind",
+ "-sFETCH",
+ "-sEXPORT_ES6=1",
+ "-sMODULARIZE=1",
+ "-sEXPORT_ALL=1",
+ "-s ALLOW_MEMORY_GROWTH=1",
+ "-s NO_EXIT_RUNTIME=1",
+]
+
+cc_binary(
+    name = "webassembly_codec_wrapper",
+    srcs = ["webassembly_codec_wrapper.cc"],
+    linkopts = WASM_LINKOPTS,
+    deps = [":encode_and_decode_lib",
+    ":lyra_encoder",
+    ":lyra_decoder",],
+)
+
+wasm_cc_binary(
+    name = "webassembly_codec",
+    cc_target = ":webassembly_codec_wrapper",
+    simd = True,
+)
+
 cc_library(
     name = "architecture_utils",
     hdrs = ["architecture_utils.h"],
@@ -50,7 +77,6 @@ cc_library(
         ":dsp_util",
         ":layer_wrapper_interface",
         "//sparse_matmul",
-        "@com_google_glog//:glog",
     ],
 )
 
@@ -61,8 +87,7 @@ cc_library(
         ":layer_wrapper",
         "//sparse_matmul",
         "@com_google_absl//absl/memory",
-        "@com_google_glog//:glog",
-    ],
+            ],
 )
 
 cc_library(
@@ -72,7 +97,6 @@ cc_library(
         ":layer_wrapper",
         "//sparse_matmul",
         "@com_google_absl//absl/memory",
-        "@com_google_glog//:glog",
     ],
 )
 
@@ -83,7 +107,6 @@ cc_library(
         ":layer_wrapper",
         "//sparse_matmul",
         "@com_google_absl//absl/memory",
-        "@com_google_glog//:glog",
     ],
 )
 
@@ -109,7 +132,6 @@ cc_library(
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_glog//:glog",
     ],
 )
 
@@ -130,7 +152,7 @@ cc_library(
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "@com_google_audio_dsp//audio/dsp:signal_vector_util",
+        "//audio/dsp:signal_vector_util",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -275,7 +297,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:optional",
-        "@com_google_glog//:glog",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -304,7 +325,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:optional",
-        "@com_google_glog//:glog",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -349,7 +369,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "@com_google_glog//:glog",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -382,7 +401,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "@com_google_glog//:glog",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -399,7 +417,6 @@ cc_library(
         ":spectrogram_predictor_interface",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/types:optional",
-        "@com_google_glog//:glog",
     ],
 )
 
@@ -419,7 +436,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "@com_google_glog//:glog",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -441,10 +457,9 @@ cc_library(
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "@com_google_audio_dsp//audio/dsp:number_util",
-        "@com_google_audio_dsp//audio/dsp/mfcc",
-        "@com_google_audio_dsp//audio/dsp/spectrogram:inverse_spectrogram",
-        "@com_google_glog//:glog",
+        "//audio/dsp:number_util",
+        "//audio/dsp/mfcc",
+        "//audio/dsp/spectrogram:inverse_spectrogram",
     ],
 )
 
@@ -475,9 +490,8 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "@com_google_audio_dsp//audio/linear_filters:biquad_filter",
-        "@com_google_audio_dsp//audio/linear_filters:biquad_filter_coefficients",
-        "@com_google_glog//:glog",
+        "//audio/linear_filters:biquad_filter",
+        "//audio/linear_filters:biquad_filter_coefficients",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -509,9 +523,8 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "@com_google_audio_dsp//audio/linear_filters:biquad_filter",
-        "@com_google_audio_dsp//audio/linear_filters:biquad_filter_coefficients",
-        "@com_google_glog//:glog",
+        "//audio/linear_filters:biquad_filter",
+        "//audio/linear_filters:biquad_filter_coefficients",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -534,7 +547,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "@com_google_glog//:glog",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -552,8 +564,7 @@ cc_library(
         ":noise_estimator_interface",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/types:optional",
-        "@com_google_audio_dsp//audio/dsp:signal_vector_util",
-        "@com_google_glog//:glog",
+        "//audio/dsp:signal_vector_util",
     ],
 )
 
@@ -577,7 +588,6 @@ cc_library(
     ],
     deps = [
         "@com_google_absl//absl/memory",
-        "@com_google_glog//:glog",
     ],
 )
 
@@ -608,7 +618,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_glog//:glog",
         "@com_google_protobuf//:protobuf",
         "@gulrak_filesystem//:filesystem",
     ],
@@ -644,7 +653,6 @@ cc_library(
         ":wavegru_model_impl",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
-        "@eigen_archive//:eigen",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -697,10 +705,9 @@ cc_library(
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "@com_google_audio_dsp//audio/dsp:number_util",
-        "@com_google_audio_dsp//audio/dsp/mfcc",
-        "@com_google_audio_dsp//audio/dsp/spectrogram",
-        "@com_google_glog//:glog",
+        "//audio/dsp:number_util",
+        "//audio/dsp/mfcc",
+        "//audio/dsp/spectrogram",
     ],
 )
 
@@ -719,8 +726,7 @@ cc_library(
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:optional",
-        "@com_google_audio_dsp//audio/dsp:signal_vector_util",
-        "@com_google_glog//:glog",
+        "//audio/dsp:signal_vector_util",
         "@eigen_archive//:eigen",
         "@gulrak_filesystem//:filesystem",
     ],
@@ -744,7 +750,6 @@ cc_library(
         ":packet_interface",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "@com_google_glog//:glog",
     ],
 )
 
@@ -761,7 +766,6 @@ cc_library(
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "@com_google_glog//:glog",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -778,7 +782,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
-        "@com_google_glog//:glog",
     ],
 )
 
@@ -791,7 +794,6 @@ cc_library(
         ":quadrature_mirror_filter",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/types:span",
-        "@com_google_glog//:glog",
     ],
 )
 
@@ -802,9 +804,8 @@ cc_library(
     deps = [
         ":dsp_util",
         "@com_google_absl//absl/types:span",
-        "@com_google_audio_dsp//audio/linear_filters:biquad_filter",
-        "@com_google_audio_dsp//audio/linear_filters:biquad_filter_coefficients",
-        "@com_google_glog//:glog",
+        "//audio/linear_filters:biquad_filter",
+        "//audio/linear_filters:biquad_filter_coefficients",
     ],
 )
 
@@ -816,7 +817,6 @@ cc_library(
         ":filter_banks",
         ":filter_banks_interface",
         "@com_google_absl//absl/memory",
-        "@com_google_glog//:glog",
     ],
 )
 
@@ -866,7 +866,6 @@ cc_binary(
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings",
-        "@com_google_glog//:glog",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -886,7 +885,6 @@ cc_binary(
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings",
-        "@com_google_glog//:glog",
         "@gulrak_filesystem//:filesystem",
     ],
 )
@@ -1115,7 +1113,6 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@com_google_glog//:glog",
         "@com_google_googletest//:gtest_main",
         "@gulrak_filesystem//:filesystem",
     ],
@@ -1144,7 +1141,6 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@com_google_glog//:glog",
         "@com_google_googletest//:gtest_main",
         "@gulrak_filesystem//:filesystem",
     ],
@@ -1449,8 +1445,7 @@ cc_library(
         ":resampler_interface",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/types:span",
-        "@com_google_audio_dsp//audio/dsp:resampler_q",
-        "@com_google_glog//:glog",
+        "//audio/dsp:resampler_q",
     ],
 )
 
@@ -1462,7 +1457,7 @@ cc_test(
         ":lyra_config",
         ":resampler",
         "@com_google_absl//absl/types:span",
-        "@com_google_audio_dsp//audio/dsp:signal_vector_util",
+        "//audio/dsp:signal_vector_util",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -1477,8 +1472,7 @@ cc_library(
         "//sparse_matmul",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "@com_google_audio_dsp//audio/dsp:signal_vector_util",
-        "@com_google_glog//:glog",
+        "//audio/dsp:signal_vector_util",
     ],
 )
 
@@ -1492,8 +1486,8 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_audio_dsp//audio/dsp/portable:read_wav_file",
-        "@com_google_audio_dsp//audio/dsp/portable:write_wav_file",
+        "//audio/dsp/portable:read_wav_file",
+        "//audio/dsp/portable:write_wav_file",
     ],
 )
 

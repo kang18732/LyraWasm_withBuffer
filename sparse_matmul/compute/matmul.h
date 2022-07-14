@@ -50,9 +50,9 @@ class MatmulBase {
         using_avx2_ = (ebx & bit_AVX2) != 0;
         using_avx512_ = (ebx & bit_AVX512F) != 0 && (ebx & bit_AVX512DQ) &&
                         (ebx & bit_AVX512BW) != 0;
-        VLOG(2) << "avx2 flag=" << using_avx2_ << " 512=" << using_avx512_;
+//        VLOG(2) << "avx2 flag=" << using_avx2_ << " 512=" << using_avx512_;
       } else {
-        LOG(ERROR) << "AVX not found at all!";
+        std::cerr << "AVX not found at all!" << std::endl;
       }
     }
 #else
@@ -82,7 +82,8 @@ class Matmul : public MatmulBase {
                  int start_row, int end_row, bool relu, int replicas,
                  int stride, OutType* output) {
     // The specializations should take care of every real case.
-    CHECK(false) << "Unsupported combination of types used!";
+    std::cerr << "Unsupported combination of types used!" << std::endl;
+    exit(EXIT_FAILURE);
   }
   template <typename OutType>
   void MatVec8x4(const WeightType* weights, const RhsType* rhs,
@@ -91,7 +92,8 @@ class Matmul : public MatmulBase {
                  int start_row, int end_row, bool relu, int replicas,
                  int stride, OutType* output) {
     // The specializations should take care of every real case.
-    CHECK(false) << "Unsupported combination of types used!";
+    std::cerr << "Unsupported combination of types used!" << std::endl;
+    exit(EXIT_FAILURE);
   }
 };
 
@@ -139,7 +141,10 @@ class Matmul<fixed16<WeightBits>, fixed16<RhsBits>> : public MatmulBase {
     static_assert(kShiftAmount >= 0,
                   "OutType must not have more mantissa bits than inputs");
 #if defined __AVX2__
-    CHECK(using_avx2_) << "Compiled for AVX2, but cpu flag not set!";
+    if(!using_avx2_) {
+      std::cerr << "Compiled for AVX2, but cpu flag not set!" << std::endl;
+      exit(EXIT_FAILURE);
+    }
     if (sizeof(*output) == 4) {
       int32_t* out32 = reinterpret_cast<int32_t*>(output);
       detail::MatVec4x4FixedAVX2(weights, rhs, bias, nnz_per_row, rhs_indices,
@@ -153,7 +158,8 @@ class Matmul<fixed16<WeightBits>, fixed16<RhsBits>> : public MatmulBase {
     }
 #elif defined __aarch64__
     if (using_aarch64_) {
-      LOG(FATAL) << "Fixed16 MatVec4x4 not yet implemented!";
+      std::cerr << "Fixed16 MatVec4x4 not yet implemented!" << std::endl;
+        exit(EXIT_FAILURE);
     }
 
 #else
@@ -175,15 +181,22 @@ class Matmul<fixed16<WeightBits>, fixed16<RhsBits>> : public MatmulBase {
     static_assert(kShiftAmount >= 0,
                   "OutType must not have more mantissa bits than inputs");
 #if defined __AVX2__
-    CHECK(replicas == 1 && sizeof(*output) == 4)
-        << "Only replicas == 1 and fixed32 output are implemented for AVX2!";
-    CHECK(using_avx2_) << "Compiled for AVX2, but cpu flag not set!";
+    if (replicas != 1 || sizeof(*output) != 4) {
+      std::cerr
+          << "Only replicas == 1 and fixed32 output are implemented for AVX2!";
+      exit(EXIT_FAILURE);
+    }
+    if(!using_avx2_) {
+     std::cerr << "Compiled for AVX2, but cpu flag not set!" << std::endl;
+     exit(EXIT_FAILURE);
+    }
     int32_t* out32 = reinterpret_cast<int32_t*>(output);
     detail::MatVec8x4FixedAVX2(weights, rhs, bias, nnz_per_row, rhs_indices,
                                start_row, end_row, relu, kShiftAmount, out32);
 #elif defined __aarch64__
     if (using_aarch64_) {
-      LOG(FATAL) << "Fixed16 MatVec8x4 not yet implemented!";
+      std::cerr << "Fixed16 MatVec8x4 not yet implemented!" << std::endl;
+        exit(EXIT_FAILURE);
     }
 #else
     detail::MatVecFixedGeneric(weights, rhs, bias, nnz_per_row, rhs_indices,

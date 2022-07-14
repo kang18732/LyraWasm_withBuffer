@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/memory/memory.h"
-#include "glog/logging.h"
 #include "layer_wrapper.h"
 #include "sparse_matmul/sparse_matmul.h"
 
@@ -46,15 +45,13 @@ class DilatedConvolutionalLayerWrapper
     // TODO(b/161015017): Support more general stride and kernel size
     // combinations.
     if (params.stride != 1) {
-      LOG(ERROR) << layer_prompt
-                 << "Dilated convolutional layer with |stride| != 1"
-                 << "is not supported.";
+      fprintf(stderr, "%s Dilated convolutional layers only support stride 1.\n",
+              layer_prompt.c_str());
       return nullptr;
     }
     if (params.length != 1) {
-      LOG(ERROR) << layer_prompt
-                 << "Dilated convolutional layer with |length| != 1"
-                 << "is not supported.";
+      fprintf(stderr, "%s Dilated convolutional layers only support length 1.\n",
+              layer_prompt.c_str());
       return nullptr;
     }
 
@@ -69,10 +66,9 @@ class DilatedConvolutionalLayerWrapper
     const int output_rows = layer->rows();
 
     if (params.skip_connection && num_input_channels != output_rows) {
-      LOG(ERROR) << layer_prompt
-                 << "Skip connection can only be performed if the input and "
-                 << "output have the same dimensions: "
-                 << params.num_input_channels << " vs " << output_rows;
+      fprintf(stderr, "Skip connection can only be performed if the number of "
+                      "input channels is equal to the number of output "
+                      "channels. %d vs %d\n", params.num_input_channels, output_rows);
       return nullptr;
     }
 

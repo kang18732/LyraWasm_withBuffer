@@ -9,7 +9,6 @@ cc_library(
     visibility = ["//sparse_matmul:__subpackages__"],
     deps = [
         "@com_google_absl//absl/memory",
-        "@com_google_glog//:glog",
     ],
 )
 

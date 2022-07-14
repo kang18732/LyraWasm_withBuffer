@@ -57,15 +57,20 @@ void unzip(int64_t st_size, std::vector<T>* array) {
 
     Bytef* dest;
     uLongf dest_len = kMaxBufferSize;
-    CHECK_EQ(z.UncompressGzipAndAllocate(&dest, &dest_len,
-                                         (Bytef*)array->data(), st_size),
-             Z_OK);
-    CHECK_EQ(dest_len % sizeof(T), 0);
+    if (z.UncompressGzipAndAllocate(&dest, &dest_len, (Bytef*)array->data(),
+                                    st_size) != Z_OK) {
+      exit(EXIT_FAILURE);
+    }
+    if (dest_len % sizeof(T) != 0) {
+      exit(EXIT_FAILURE);
+    }
     array->assign(reinterpret_cast<T*>(dest),
                   reinterpret_cast<T*>(dest + dest_len));
     free(dest);
   } else {
-    CHECK_EQ(st_size % sizeof(T), 0);
+    if (st_size % sizeof(T) != 0) {
+      exit(EXIT_FAILURE);
+    }
   }
 }
 
@@ -176,18 +181,23 @@ absl::Status LoadGenericLayer(
   SPARSE_MATMUL_RETURN_IF_ERROR(
       ReadArrayFromFile(bias_name, &bias_vector, path));
 
-  CHECK(weight_vector.size() == mask_vector.size())
-      << "Weight and mask must be"
-      << " the same size, weights: " << weight_vector.size()
-      << " mask: " << mask_vector.size();
-  CHECK(weight_vector.size() % bias_vector.size() == 0)
-      << "Weights size must "
-         "be a multiple of the bias size. Weights: "
-      << weight_vector.size()
-      << " "
-         "bias: "
-      << bias_vector.size()
-      << " remainder: " << weight_vector.size() % bias_vector.size();
+  if (weight_vector.size() != mask_vector.size()) {
+    std::cerr << "Weight and mask must be"
+              << " the same size, weights: " << weight_vector.size()
+              << " mask: " << mask_vector.size() << std::endl;
+    exit(EXIT_FAILURE);
+  }
+
+  if (weight_vector.size() % bias_vector.size() != 0) {
+    std::cerr << "Weights size must "
+                 "be a multiple of the bias size. Weights: "
+              << weight_vector.size()
+              << " "
+                 "bias: "
+              << bias_vector.size()
+              << " remainder: " << weight_vector.size() % bias_vector.size();
+    exit(EXIT_FAILURE);
+  }
 
   int rows = bias_vector.size();
   int cols = weight_vector.size() / rows;
@@ -254,18 +264,23 @@ absl::Status LoadMaskedLayer(const std::string& prefix, bool zipped,
   SPARSE_MATMUL_RETURN_IF_ERROR(
       ReadArrayFromFile(bias_name, &bias_vector, path));
 
-  CHECK(weight_vector.size() == mask_vector.size())
-      << "Weight and mask must be"
-      << " the same size, weights: " << weight_vector.size()
-      << " mask: " << mask_vector.size();
-  CHECK(weight_vector.size() % bias_vector.size() == 0)
-      << "Weights size must "
-         "be a multiple of the bias size. Weights: "
-      << weight_vector.size()
-      << " "
-         "bias: "
-      << bias_vector.size()
-      << " remainder: " << weight_vector.size() % bias_vector.size();
+  if (weight_vector.size() != mask_vector.size()) {
+    std::cerr << "Weight and mask must be"
+              << " the same size, weights: " << weight_vector.size()
+              << " mask: " << mask_vector.size() << std::endl;
+    exit(EXIT_FAILURE);
+  }
+
+  if (weight_vector.size() % bias_vector.size() != 0) {
+    std::cerr << "Weights size must "
+                 "be a multiple of the bias size. Weights: "
+              << weight_vector.size()
+              << " "
+                 "bias: "
+              << bias_vector.size()
+              << " remainder: " << weight_vector.size() % bias_vector.size();
+    exit(EXIT_FAILURE);
+  }
 
   int rows = bias_vector.size();
   int cols = weight_vector.size() / rows;
@@ -302,23 +317,32 @@ absl::Status LoadFatVector(const std::string& file_name, int rows, int cols,
                            FatCacheAlignedVector<T>* fat_cache_aligned_vector,
                            const std::string& path = "/data/local/tmp/") {
   // neither can be zero
-  CHECK(rows != 0 && cols != 0);
+  if (rows == 0 || cols == 0) {
+        std::cerr << "rows and cols cannot be zero" << std::endl;
+        exit(EXIT_FAILURE);
+  }
   // only one can be -1
-  CHECK(rows != -1 || cols != -1);
+  if (rows == -1 && cols == -1) {
+            std::cerr << "rows and cols cannot be -1" << std::endl;
+                exit(EXIT_FAILURE);
+  }
   // otherwise must be positive
-  CHECK(rows >= -1 && cols >= -1);
+  if (rows < -1 || cols < -1) {
+            std::cerr << "rows and cols must be positive" << std::endl;
+                exit(EXIT_FAILURE);
+  }
 
   CacheAlignedVector<T> values;
 
   SPARSE_MATMUL_RETURN_IF_ERROR(LoadVector(file_name, &values, path));
 
-  if (rows > 0)
-    CHECK_EQ(values.size() % rows, 0);
+  if (rows > 0 && values.size() % rows != 0)
+    exit(EXIT_FAILURE);
   else
     rows = values.size() / cols;
 
-  if (cols > 0)
-    CHECK_EQ(values.size() % cols, 0);
+  if (cols > 0 && values.size() % cols != 0)
+    exit(EXIT_FAILURE);
   else
     cols = values.size() / rows;
 

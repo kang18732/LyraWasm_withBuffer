@@ -26,7 +26,6 @@
 
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "glog/logging.h"
 #include "packet_interface.h"
 
 namespace chromemedia {
@@ -48,7 +47,7 @@ class Packet : public PacketInterface {
     const int expected_packet_size = static_cast<int>(std::ceil(
         static_cast<float>(NumQuantizedBits + NumHeaderBits) / CHAR_BIT));
     if (packet.length() != expected_packet_size) {
-      LOG(ERROR) << "Packet of unexpected length: " << packet.length();
+      std::cerr << "Packet of unexpected length: " << packet.length() << std::endl;
       return absl::nullopt;
     }
     std::bitset<NumQuantizedBits> quantized_features = UnpackFeatures(packet);

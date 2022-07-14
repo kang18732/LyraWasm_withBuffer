@@ -24,7 +24,6 @@
 #include "absl/memory/memory.h"
 #include "absl/types/optional.h"
 #include "audio/dsp/signal_vector_util.h"
-#include "glog/logging.h"
 #include "log_mel_spectrogram_extractor_impl.h"
 
 namespace chromemedia {
@@ -94,7 +93,7 @@ std::vector<float> SmoothingFactor(float max_smoothing,
 std::unique_ptr<NoiseEstimator> NoiseEstimator::Create(
     int num_features, float num_seconds_per_frame) {
   if (num_seconds_per_frame <= 0) {
-    LOG(ERROR) << "Argument num_seconds_per_frame has to be positive.";
+    std::cerr << "Argument num_seconds_per_frame has to be positive.";
     return nullptr;
   }
 
@@ -137,6 +136,7 @@ void NoiseEstimator::ComputeBounds() {
 
 bool NoiseEstimator::Update(const std::vector<float>& curr_power_db) {
   if (curr_power_db.size() != num_features_) {
+    std::cerr << "Shape size mismatch for noise estimator." << std::endl;
     return false;
   }
   if (num_frames_received_ == 0) {

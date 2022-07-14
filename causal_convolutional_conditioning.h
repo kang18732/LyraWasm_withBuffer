@@ -24,7 +24,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "dsp_util.h"
-#include "glog/logging.h"
 #include "layer_wrappers_lib.h"
 #include "lyra_types.h"
 #include "sparse_matmul/sparse_matmul.h"
@@ -108,16 +107,24 @@ class CausalConvolutionalConditioning {
         prefix_(prefix),
         num_precomputed_frames_(0) {
     // Crash ok.
-    CHECK_LE(num_threads_, num_cond_hiddens)
-        << "Number of threads must be <= the number of hidden layers "
-           "but were "
-        << num_threads_ << " and " << num_cond_hiddens_;
-    CHECK_GT(num_threads_, 0) << "Number of threads must be > 0.";
-    CHECK_GT(num_samples_per_hop_, 0)
-        << "Number of samples per hop must be > 0.";
-    CHECK_GT(num_frames_per_packet_, 0)
-        << "Number of frames per packet must be > 0.";
-
+    if (num_threads_ > num_cond_hiddens) {
+      std::cerr << "Number of threads must be <= the number of hidden layers "
+                   "but were "
+                << num_threads_ << " and " << num_cond_hiddens_ << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    if (num_threads_ <= 0) {
+      std::cerr << "Number of threads must be > 0." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    if (num_samples_per_hop_ <= 0) {
+      std::cerr << "Number of samples per hop must be > 0." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    if (num_frames_per_packet_ <= 0) {
+     std::cerr << "Number of frames per packet must be > 0." << std::endl;
+     exit(EXIT_FAILURE);
+    }
     CreateLayers();
     PrepareOutput();
     WarmUp(silence_value);
@@ -140,8 +147,16 @@ class CausalConvolutionalConditioning {
 
   void Precompute(const csrblocksparse::FatCacheAlignedVector<float>& input,
                   int num_threads) {
-    CHECK_EQ(input.cols(), kCondInputNumTimesteps);
-    CHECK_EQ(feature_depth_, input.rows());
+    if (input.cols() != kCondInputNumTimesteps) {
+        std::cerr << "Input must have " << kCondInputNumTimesteps << " columns."
+                    << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    if (feature_depth_ != input.rows()) {
+        std::cerr << "Input must have " << feature_depth_ << " rows."
+                    << std::endl;
+        exit(EXIT_FAILURE);
+    }
     InsertNewInput(input);
 
     auto f = [this](csrblocksparse::SpinBarrier* barrier, int tid) {
@@ -293,47 +308,74 @@ class CausalConvolutionalConditioning {
     const LayerParams conv1d_params = Conv1DParams(
         feature_depth_, num_cond_hiddens_, num_threads_, path_, prefix_);
     conv1d_layer_ = Conv1DLayerType::Create(conv1d_params);
-    CHECK_NE(conv1d_layer_, nullptr);
+    if (conv1d_layer_ ==  nullptr) {
+      std::cerr << "Failed to create conv1d layer." << std::endl;
+      exit(EXIT_FAILURE);
+    }
 
     const LayerParams dilated_params_0 =
         DilatedParams(num_cond_hiddens_, 0, num_threads_, path_, prefix_);
     dilated_conv_layer_0_ = CondStack0LayerType::Create(dilated_params_0);
-    CHECK_NE(dilated_conv_layer_0_, nullptr);
+    if (dilated_conv_layer_0_ == nullptr) {
+        std::cerr << "Failed to create dilated conv layer 0." << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     const LayerParams dilated_params_1 =
         DilatedParams(num_cond_hiddens_, 1, num_threads_, path_, prefix_);
     dilated_conv_layer_1_ = CondStack1LayerType::Create(dilated_params_1);
-    CHECK_NE(dilated_conv_layer_1_, nullptr);
+    if (dilated_conv_layer_1_ == nullptr) {
+        std::cerr << "Failed to create dilated conv layer 1." << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     const LayerParams dilated_params_2 =
         DilatedParams(num_cond_hiddens_, 2, num_threads_, path_, prefix_);
     dilated_conv_layer_2_ = CondStack2LayerType::Create(dilated_params_2);
-    CHECK_NE(dilated_conv_layer_2_, nullptr);
+    if (dilated_conv_layer_2_ == nullptr) {
+        std::cerr << "Failed to create dilated conv layer 2." << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     const LayerParams transpose_params_0 =
         TransposeParams(num_cond_hiddens_, 0, num_threads_, path_, prefix_);
     transpose_conv_layer_0_ = Transpose0LayerType::Create(transpose_params_0);
-    CHECK_NE(transpose_conv_layer_0_, nullptr);
+    if (transpose_conv_layer_0_ == nullptr) {
+        std::cerr << "Failed to create transpose conv layer 0." << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     const LayerParams transpose_params_1 =
         TransposeParams(num_cond_hiddens_, 1, num_threads_, path_, prefix_);
     transpose_conv_layer_1_ = Transpose1LayerType::Create(transpose_params_1);
-    CHECK_NE(transpose_conv_layer_1_, nullptr);
+    if (transpose_conv_layer_1_ == nullptr) {
+        std::cerr << "Failed to create transpose conv layer 1." << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     const LayerParams transpose_params_2 =
         TransposeParams(num_cond_hiddens_, 2, num_threads_, path_, prefix_);
     transpose_conv_layer_2_ = Transpose2LayerType::Create(transpose_params_2);
-    CHECK_NE(transpose_conv_layer_2_, nullptr);
+    if (transpose_conv_layer_2_ == nullptr) {
+        std::cerr << "Failed to create transpose conv layer 2." << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     const LayerParams conv_cond_params = ConvCondParams(
         num_cond_hiddens_, num_hiddens_, num_threads_, path_, prefix_);
     conv_cond_layer_ = ConvCondLayerType::Create(conv_cond_params);
-    CHECK_NE(conv_cond_layer_, nullptr);
+    if (conv_cond_layer_ == nullptr) {
+        std::cerr << "Failed to create conv_cond layer." << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     const LayerParams conv_to_gates_params =
         ConvToGatesParams(num_hiddens_, num_threads_, path_, prefix_);
     conv_to_gates_layer_ = ConvToGatesLayerType::Create(conv_to_gates_params);
-    CHECK_NE(conv_to_gates_layer_, nullptr);
+    if (conv_to_gates_layer_ == nullptr) {
+        std::cerr << "Failed to create conv_to_gates layer." << std::endl;
+        exit(EXIT_FAILURE);
+    }
   }
 
   void PrepareOutput() {

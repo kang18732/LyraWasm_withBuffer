@@ -15,8 +15,8 @@
 #include "sparse_matmul/compute/thread_bounds.h"
 
 #include <vector>
+#include <iostream>
 
-#include "glog/logging.h"
 
 namespace csrblocksparse {
 
@@ -24,7 +24,10 @@ void ThreadBounds::PrepareForThreads(int block_width, int block_height,
                                      int num_threads,
                                      int reduced_rows_per_cache_row,
                                      int reduced_rows, const int* nnz_per_row) {
-  CHECK_GT(num_threads, 0);
+  if (num_threads < 1) {
+    exit(EXIT_FAILURE);
+  }
+
   block_width_ = block_width;
   block_height_ = block_height;
   ComputeThreadSplitPoints(num_threads, reduced_rows_per_cache_row,
@@ -95,12 +98,12 @@ void ThreadBounds::ComputeThreadSplitPoints(int num_threads,
       split_row = reduced_rows;
     }
 
-    VLOG(2) << "tid=" << i - 1 << " num rows=" << split_row - row_starts_.back()
-            << " work=" << work_upto_row[split] - work_upto_row[prev_split];
+//    std::cout << "tid=" << i - 1 << " num rows=" << split_row - row_starts_.back()
+//            << " work=" << work_upto_row[split] - work_upto_row[prev_split] << std::endl;
     row_starts_.push_back(split_row);
     prev_split = split;
   }
-  VLOG(2) << "total rows=" << reduced_rows << " total work=" << total_work;
+  //std::cout << "total rows=" << reduced_rows << " total work=" << total_work << std::endl;
 }
 
 }  // namespace csrblocksparse

@@ -30,7 +30,6 @@
 #include "denoiser_interface.h"
 #include "dsp_util.h"
 #include "feature_extractor_interface.h"
-#include "glog/logging.h"
 #include "include/ghc/filesystem.hpp"
 #include "lyra_components.h"
 #include "lyra_config.h"
@@ -51,7 +50,7 @@ std::unique_ptr<LyraEncoder> LyraEncoder::Create(
   absl::Status are_params_supported =
       AreParamsSupported(sample_rate_hz, num_channels, bitrate, model_path);
   if (!are_params_supported.ok()) {
-    LOG(ERROR) << are_params_supported;
+    std::cerr << "ERROR: " << are_params_supported << std::endl;
     return nullptr;
   }
 
@@ -59,7 +58,7 @@ std::unique_ptr<LyraEncoder> LyraEncoder::Create(
   if (kInternalSampleRateHz != sample_rate_hz) {
     resampler = Resampler::Create(sample_rate_hz, kInternalSampleRateHz);
     if (resampler == nullptr) {
-      LOG(ERROR) << "Could not create Resampler.";
+      fprintf(stderr, "Error: Failed to create resampler.\n");
       return nullptr;
     }
   }
@@ -70,7 +69,7 @@ std::unique_ptr<LyraEncoder> LyraEncoder::Create(
       kInternalSampleRateHz, kNumFeatures, internal_samples_per_hop,
       GetNumSamplesPerFrame(kInternalSampleRateHz));
   if (feature_extractor == nullptr) {
-    LOG(ERROR) << "Could not create Features Extractor.";
+    fprintf(stderr, "Error: Failed to create feature extractor.\n");
     return nullptr;
   }
 
@@ -78,7 +77,7 @@ std::unique_ptr<LyraEncoder> LyraEncoder::Create(
       CreateQuantizer(kNumFramesPerPacket * kNumExpectedOutputFeatures,
                       kNumQuantizationBits, model_path);
   if (vector_quantizer == nullptr) {
-    LOG(ERROR) << "Could not create Vector Quantizer.";
+    fprintf(stderr, "Error: Failed to create vector quantizer.\n");
     return nullptr;
   }
 
@@ -89,14 +88,14 @@ std::unique_ptr<LyraEncoder> LyraEncoder::Create(
           kNumFeatures,
           static_cast<float>(internal_samples_per_hop) / kInternalSampleRateHz);
   if (noise_estimator == nullptr) {
-    LOG(ERROR) << "Could not create Noise Estimator.";
+    fprintf(stderr, "Error: Failed to create noise estimator.\n");
     return nullptr;
   }
 
   // Default to the internal frame hop size.
   auto denoiser = CreateDenoiser(model_path);
   if (!denoiser.ok()) {
-    LOG(ERROR) << "Failed to create denoiser.";
+    fprintf(stderr, "Error: Failed to create denoiser.\n");
     return nullptr;
   }
   if (denoiser.value() != nullptr) {
@@ -105,7 +104,8 @@ std::unique_ptr<LyraEncoder> LyraEncoder::Create(
             ? internal_samples_per_hop
             : denoiser.value()->SamplesPerHop();
     if (internal_samples_per_hop % denoiser_samples_per_hop != 0) {
-      LOG(ERROR) << "Denoiser hop size must divide encoder hop size.";
+      fprintf(stderr, "Error: Denoiser hop size must divide the "
+                      "encoder hop size.\n");
       return nullptr;
     }
   }
@@ -183,9 +183,11 @@ absl::optional<std::vector<uint8_t>> LyraEncoder::EncodeInternal(
       GetNumSamplesPerHop(kInternalSampleRateHz);
   if (audio_for_encoding.size() !=
       num_frames_per_packet_ * internal_samples_per_hop) {
-    LOG(ERROR) << "The number of audio samples has to be exactly "
-               << num_frames_per_packet_ * GetNumSamplesPerHop(sample_rate_hz_)
-               << ", but is " << audio.size() << ".";
+    fprintf(stderr, "The number of audio samples (%zu) does not match the "
+                    "number of frames per packet (%d) times the internal "
+                    "hop size (%d).\n",
+            audio_for_encoding.size(), num_frames_per_packet_,
+            internal_samples_per_hop);
     return absl::nullopt;
   }
 
@@ -197,7 +199,7 @@ absl::optional<std::vector<uint8_t>> LyraEncoder::EncodeInternal(
       auto denoised_frame = denoiser_->Denoise(
           audio_for_encoding.subspan(t, denoiser_->SamplesPerHop()));
       if (!denoised_frame.ok()) {
-        LOG(ERROR) << "Denoising failed.";
+        fprintf(stderr, "Denoising failed.\n");
         return absl::nullopt;
       }
       denoised_audio.insert(denoised_audio.end(),
@@ -228,7 +230,7 @@ absl::optional<std::vector<uint8_t>> LyraEncoder::EncodeInternal(
     auto features_or = feature_extractor_->Extract(audio_for_encoding.subspan(
         internal_samples_per_hop * i, internal_samples_per_hop));
     if (!features_or.has_value()) {
-      LOG(ERROR) << "Unable to extract features from audio frame.";
+      fprintf(stderr, "Feature extraction from audio frame failed.\n");
       return absl::nullopt;
     }
     const std::vector<float>& features = features_or.value();
@@ -236,7 +238,7 @@ absl::optional<std::vector<uint8_t>> LyraEncoder::EncodeInternal(
     if (enable_dtx_) {
       auto is_similar_noise = noise_estimator_->IsSimilarNoise(features);
       if (!is_similar_noise.has_value()) {
-        LOG(ERROR) << "Unable to check noise estimation.";
+        fprintf(stderr, "Unable to check noise estimation.\n");
         return absl::nullopt;
       }
 
@@ -244,7 +246,7 @@ absl::optional<std::vector<uint8_t>> LyraEncoder::EncodeInternal(
         num_similar_noise_frames++;
       } else {
         if (!noise_estimator_->Update(features)) {
-          LOG(ERROR) << "Unable to update noise estimator.";
+          fprintf(stderr, "Unable to update noise estimator.\n");
           return absl::nullopt;
         }
       }
@@ -265,7 +267,7 @@ absl::optional<std::vector<uint8_t>> LyraEncoder::EncodeInternal(
   auto quantized_features_or =
       vector_quantizer_->Quantize(concatenated_features);
   if (!quantized_features_or.has_value()) {
-    LOG(ERROR) << "Unable to quantize features.";
+    fprintf(stderr, "Vector quantization failed.\n");
     return absl::nullopt;
   }
   return packet_->PackQuantized(quantized_features_or.value());

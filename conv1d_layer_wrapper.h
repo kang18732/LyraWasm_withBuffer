@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "absl/memory/memory.h"
-#include "glog/logging.h"
 #include "layer_wrapper.h"
 #include "sparse_matmul/sparse_matmul.h"
 
@@ -46,19 +45,17 @@ class Conv1DLayerWrapper
     // TODO(b/161015017): Support more general stride and kernel size
     // combinations.
     if (params.skip_connection) {
-      LOG(ERROR) << layer_prompt
-                 << "Conv1D Layer does not support skip connections.";
+      fprintf(stderr, "%s Conv1D layer with skip connection is not supported.\n",
+              layer_prompt.c_str());
       if (params.stride == 1) {
-        LOG(WARNING) << layer_prompt
-                     << "Use DilatedConvolutionalLayerWrapper with |dilation| "
-                     << "= 1 and |stride| = 1 to allow skip connections.";
+        fprintf(stderr, "%s Use DilatedConvolutionalLayerWrapper with |dilation| = 1 and |stride| = 1 to allow skip connections.\n",
+                layer_prompt.c_str());
       }
       return nullptr;
     }
     if (params.dilation != 1) {
-      LOG(ERROR) << layer_prompt
-                 << "Use DilatedConvolutionalLayerWrapper instead by setting "
-                 << "|params.type| to |kDilated|.";
+      fprintf(stderr, "%s Use DilatedConvolutionalLayerWrapper instead by setting |params.type| to |kDilated|.\n",
+              layer_prompt.c_str());
       return nullptr;
     }
 

@@ -22,7 +22,6 @@
 
 #include "absl/types/span.h"
 #include "audio/dsp/signal_vector_util.h"
-#include "glog/logging.h"
 
 namespace chromemedia {
 namespace codec {
@@ -32,7 +31,7 @@ absl::optional<float> LogSpectralDistance(
     const absl::Span<const float> second_log_spectrum) {
   const int num_features = first_log_spectrum.size();
   if (num_features != second_log_spectrum.size()) {
-    LOG(ERROR) << "Spectrum sizes are not equal.";
+    std::cerr << "Spectrum sizes are not equal." << std::endl;
     return absl::nullopt;
   }
   float log_spectral_distance = 0.f;

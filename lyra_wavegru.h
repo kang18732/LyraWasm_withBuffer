@@ -33,7 +33,6 @@
 #include "absl/types/span.h"
 #include "causal_convolutional_conditioning.h"
 #include "dsp_util.h"
-#include "glog/logging.h"
 #include "include/ghc/filesystem.hpp"
 #include "layer_wrappers_lib.h"
 #include "lyra_types.h"
@@ -72,12 +71,12 @@ class LyraWavegru {
       int num_threads, const ghc::filesystem::path& path,
       const std::string& prefix) {
 #if defined __aarch64__
-    LOG(INFO)
+    std::cout
         << "lyra_wavegru running fast multiplication kernels for aarch64.";
 #elif defined __AVX__
-    LOG(INFO) << "lyra_wavegru running fast multiplication kernels for AVX.";
+    std::cout << "lyra_wavegru running fast multiplication kernels for AVX.";
 #else   // defined __AVX__
-    LOG(WARNING) << "lyra_wavegru running in slow generic mode.";
+    std::cout << "lyra_wavegru running in slow generic mode.";
 #endif  // defined __aarch64__
 
     LayerParams ar_to_gates_params{.num_input_channels = kNumSplitBands,
@@ -128,8 +127,8 @@ class LyraWavegru {
     project_and_sample_layer->LoadRaw(path, prefix + "_", /*zipped=*/true);
     if (project_and_sample_layer->PrepareForThreads(num_threads) !=
         num_threads) {
-      LOG(ERROR) << "Could not prepare project_and_sample for " << num_threads
-                 << " threads.";
+      std::cerr << "Could not prepare project_and_sample for " << num_threads
+                 << " threads." << std::endl;
       return nullptr;
     }
     return absl::WrapUnique(new LyraWavegru<WeightTypeKind>(
@@ -223,7 +222,7 @@ class LyraWavegru {
   }
 
   void InitLoadedLayers() {
-    LOG(INFO) << "Model size: " << ModelSize() << " bytes";
+    std::cout << "Model size: " << ModelSize() << " bytes";
     // Working space for activations.
     ar_output_buffer_ = csrblocksparse::CacheAlignedVector<ArOutputType>(
         ar_to_gates_layer_->rows());
@@ -247,14 +246,25 @@ class LyraWavegru {
       ConditioningType* conditioning,
       std::vector<std::vector<int16_t>>* split_band_samples,
       const std::function<void(int16_t*, int, int, int)>& /*unused*/) {
-    CHECK_EQ(kNumSplitBands, split_band_samples->size());
+    if (kNumSplitBands != split_band_samples->size()) {
+        std::cerr << "split_band_samples->size() != kNumSplitBands"
+                    << std::endl;
+        exit(EXIT_FAILURE);
+    }
     const int conditioning_start = conditioning_start_.load();
     const int num_samples_to_generate =
         std::min(num_samples_to_generate_.load(),
                  conditioning->num_samples() - conditioning_start);
     // We can only generate samples in multiples of |kNumSplitBands|.
-    CHECK_EQ(num_samples_to_generate % kNumSplitBands, 0);
-    CHECK_GE(num_samples_to_generate, 0);
+    if (num_samples_to_generate % kNumSplitBands != 0) {
+        std::cerr << "num_samples_to_generate % kNumSplitBands != 0"
+                    << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    if (num_samples_to_generate < 0) {
+        std::cerr << "num_samples_to_generate < 0" << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     // This is a scratch space, whose size should be multiple of 8.
     csrblocksparse::CacheAlignedVector<ScratchType> sample_tmp(

@@ -18,7 +18,6 @@
 #include <random>
 
 #include "absl/memory/memory.h"
-#include "glog/logging.h"
 
 namespace chromemedia {
 namespace codec {
@@ -27,20 +26,21 @@ std::unique_ptr<GilbertModel> GilbertModel::Create(float packet_loss_rate,
                                                    float average_burst_length,
                                                    bool random_seed) {
   if (average_burst_length < 1.f) {
-    LOG(ERROR) << "Average Burst Length has to be at least 1, but was "
-               << average_burst_length << ".";
+    fprintf(stderr, "average_burst_length must be greater than 1 but was %f.\n",
+            average_burst_length);
     return nullptr;
   }
   if (packet_loss_rate < 0.f) {
-    LOG(ERROR) << "Packet Loss Rate has to be positive, but was "
-               << packet_loss_rate << ".";
+    fprintf(stderr,
+            "packet_loss_rate must be greater than or equal to 0 but was %f.\n",
+            packet_loss_rate);
     return nullptr;
   }
   if (packet_loss_rate > average_burst_length / (average_burst_length + 1.f)) {
-    LOG(ERROR) << "Packet Loss Rate cannot be larger than "
-               << "average_burst_length/(average_burst_length+1)="
-               << average_burst_length / (average_burst_length + 1.f)
-               << ", but was " << packet_loss_rate << ".";
+    fprintf(stderr,
+            "packet_loss_rate must be less than or equal to %f / (%f + 1) but "
+            "was %f.\n",
+            average_burst_length, average_burst_length, packet_loss_rate);
     return nullptr;
   }
 

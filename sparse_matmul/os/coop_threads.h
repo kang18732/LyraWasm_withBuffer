@@ -24,7 +24,6 @@
 #define _COOP_THREADS_USE_STD_THREAD 1
 
 #include "absl/memory/memory.h"
-#include "glog/logging.h"
 
 namespace csrblocksparse {
 
@@ -158,7 +157,9 @@ void LaunchOnThreadsWithBarrier(int num_threads, Function&& func,
 
     threads.emplace_back(absl::make_unique<Thread>(f));
 #ifndef _COOP_THREADS_USE_STD_THREAD
-    CHECK_OK(threads.back()->Start());
+    if (!threads.back()->Start().ok()) {
+      exit(EXIT_FAILURE);
+    }
 #endif
   }
 
@@ -169,7 +170,9 @@ void LaunchOnThreadsWithBarrier(int num_threads, Function&& func,
 #ifdef _COOP_THREADS_USE_STD_THREAD
     thread->join();
 #else
-    CHECK_OK(thread->Join());
+    if(!thread->Join().ok()) {
+      exit(EXIT_FAILURE);
+    }
 #endif
   }
 }

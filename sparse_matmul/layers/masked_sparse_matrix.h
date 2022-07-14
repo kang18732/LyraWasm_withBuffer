@@ -48,8 +48,9 @@ class MaskedSparseMatrix {
                      int block_width = 1, float constant = 1.f,
                      bool random = true)
       : rows_(rows), cols_(cols), sparsity_(sparsity) {
-    CHECK_EQ(rows % block_height, 0);
-    CHECK_EQ(cols % block_width, 0);
+    if (rows % block_height != 0 || cols % block_width != 0) {
+      exit(1);
+    }
 
     init(sparsity, block_height, block_width, constant, random);
   }

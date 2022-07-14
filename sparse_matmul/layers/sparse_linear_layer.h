@@ -20,7 +20,6 @@
 #include <cstdint>
 
 #include "absl/memory/memory.h"
-#include "glog/logging.h"
 #include "sparse_matmul/layers/csr_blocksparse_matrix.h"
 #include "sparse_matmul/layers/masked_sparse_matrix.h"
 #include "sparse_matmul/numerics/type_utils.h"
@@ -39,7 +38,9 @@ class SparseLinearLayer {
   SparseLinearLayer(CsrBlockSparseMatrix<WeightType, RhsType>&& sparse_matrix,
                     CacheAlignedVector<BiasType>&& bias)
       : sparse_matrix_(std::move(sparse_matrix)), full_bias_(std::move(bias)) {
-    CHECK_EQ(sparse_matrix_.rows(), full_bias_.size());
+    if (sparse_matrix_.rows() != full_bias_.size()) {
+      exit(EXIT_FAILURE);
+    }
     // Some kernels expect that the bias is divided by 4, so we store a second
     // copy of a quarter of the bias.
     // TODO(b/189958858): Remove the quartered bias if it can be done without
@@ -132,7 +133,7 @@ class SparseLinearLayer {
       return;
     }
 #endif
-    DCHECK_EQ(replicas, 1) << "Must have single replica for SpMM API";
+    //DCHECK_EQ(replicas, 1) << "Must have single replica for SpMM API";
     if (IsSplit()) {
       // Generics aren't setup to use a split matrix. This will be inefficient.
       split_pc_->produce();
@@ -140,7 +141,7 @@ class SparseLinearLayer {
     }
     if (block_height() == 8) {
       // We are currently forced to use MatVec generics for this case.
-      LOG(WARNING) << "Need to implement MatVec for 8x4 for non-AVX2 targets!!";
+      std::cout << "Need to implement MatVec for 8x4 for non-AVX2 targets!!";
       sparse_matrix_.MatVec(rhs.cast_data(), full_bias_.cast_data(), relu, tid,
                             replicas, output_stride, output->data());
       if (barrier != nullptr) barrier->barrier();
@@ -206,7 +207,7 @@ class SparseLinearLayer {
   void SliceForThreads(const std::vector<int>& split_points) {
     thread_layers_.clear();
     thread_layers_.reserve(num_threads_);
-    LOG(INFO) << "Slicing " << rows() << "x" << cols() << " matrix for "
+    std::cout << "Slicing " << rows() << "x" << cols() << " matrix for "
               << num_threads_ << " threads";
     for (int tid = 0; tid < num_threads_; ++tid) {
       thread_layers_.emplace_back(
@@ -248,7 +249,7 @@ class SparseLinearLayer {
   void SplitOutputs(
       SparseLinearLayer<WeightType, RhsType, BiasType, DeltaType>* part1,
       SparseLinearLayer<WeightType, RhsType, BiasType, DeltaType>* part2) {
-    LOG(INFO) << "input rows=" << sparse_matrix_.rows()
+    std::cout << "input rows=" << sparse_matrix_.rows()
               << ", cols=" << sparse_matrix_.cols();
     CsrBlockSparseMatrix<WeightType, RhsType> matrix1(
         sparse_matrix_.SplitByRow(0, sparse_matrix_.rows() / 2));
@@ -285,7 +286,7 @@ class SparseLinearLayer {
       // thread tid.
       int start_row = matrix.split_points()[tid] * block_height;
       int end_row = matrix.split_points()[tid + 1] * block_height;
-      LOG(INFO) << "input cols [" << start_col << "," << end_col << ") rows ["
+      std::cout << "input cols [" << start_col << "," << end_col << ") rows ["
                 << start_row << "," << end_row << ")";
       CsrBlockSparseMatrix<WeightType, RhsType> row_sub_matrix =
           matrix.SplitByRow(start_row, end_row);

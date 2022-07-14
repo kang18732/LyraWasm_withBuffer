@@ -29,7 +29,6 @@
 #include "audio/dsp/number_util.h"
 #include "audio/dsp/spectrogram/inverse_spectrogram.h"
 #include "dsp_util.h"
-#include "glog/logging.h"
 #include "log_mel_spectrogram_extractor_impl.h"
 
 #ifdef BENCHMARK
@@ -51,13 +50,13 @@ std::unique_ptr<ComfortNoiseGenerator> ComfortNoiseGenerator::Create(
           kNumFftBins, static_cast<double>(sample_rate_hz), num_mel_bins,
           LogMelSpectrogramExtractorImpl::GetLowerFreqLimit(),
           LogMelSpectrogramExtractorImpl::GetUpperFreqLimit(sample_rate_hz))) {
-    LOG(ERROR) << "Could not initialize mel filterbank.";
+    std::cerr << "Could not initialize mel filterbank.";
     return nullptr;
   }
 
   auto inverse_spectrogram = absl::make_unique<audio_dsp::InverseSpectrogram>();
   if (!inverse_spectrogram->Initialize(kFftSize, hop_length_samples)) {
-    LOG(ERROR) << "Could not initialize inverse spectrogram.";
+    std::cerr << "Could not initialize inverse spectrogram.";
     return nullptr;
   }
 
@@ -88,18 +87,18 @@ void ComfortNoiseGenerator::AddFeatures(const std::vector<float>& features) {
 absl::optional<std::vector<int16_t>> ComfortNoiseGenerator::GenerateSamples(
     int num_samples) {
   if (num_samples > hop_length_samples_) {
-    LOG(ERROR) << "Number of samples requested cannot be larger than the "
-                  "hop length.";
+    std::cerr << "Number of samples requested cannot be larger than the "
+                 "hop length.";
     return absl::nullopt;
   }
   if (num_samples < 0) {
-    LOG(ERROR)
+    std::cerr
         << "Number of samples requested must be greater than or equal to 0.";
     return absl::nullopt;
   }
   if (log_mel_features_.size() != num_mel_bins_) {
-    LOG(ERROR) << "Size of features is " << log_mel_features_.size()
-               << ", but should be " << num_mel_bins_ << ".";
+    std::cerr << "Size of features is " << log_mel_features_.size()
+              << ", but should be " << num_mel_bins_ << ".";
     return absl::nullopt;
   }
 
@@ -148,9 +147,9 @@ bool ComfortNoiseGenerator::FftFromFeatures() {
   mel_filterbank_->EstimateInverse(mel_features, &squared_magnitude_fft_);
 
   if (squared_magnitude_fft_.size() != num_fft_bins_) {
-    LOG(ERROR) << "Size of squared-magnitude FFT is "
-               << squared_magnitude_fft_.size() << ", but should be "
-               << num_fft_bins_ << ".";
+    std::cerr << "Size of squared-magnitude FFT is "
+              << squared_magnitude_fft_.size() << ", but should be "
+              << num_fft_bins_ << ".";
     return false;
   }
 
@@ -176,9 +175,9 @@ bool ComfortNoiseGenerator::InvertFft() {
   }
 
   if (temp_samples.size() != hop_length_samples_) {
-    LOG(ERROR) << "Size of samples gotten from inverse FFT operation is "
-               << temp_samples.size() << ", but should be "
-               << hop_length_samples_ << ".";
+    std::cerr << "Size of samples gotten from inverse FFT operation is "
+              << temp_samples.size() << ", but should be "
+              << hop_length_samples_ << ".";
     return false;
   }
 

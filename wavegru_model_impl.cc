@@ -24,7 +24,6 @@
 
 #include "buffer_merger.h"
 #include "causal_convolutional_conditioning.h"
-#include "glog/logging.h"
 #include "include/ghc/filesystem.hpp"
 #include "lyra_wavegru.h"
 #include "sparse_matmul/sparse_matmul.h"
@@ -50,13 +49,13 @@ std::unique_ptr<WavegruModelImpl> WavegruModelImpl::Create(
   auto wavegru = LyraWavegru<ComputeType>::Create(
       kNumThreads, std::string(model_path), kModelPrefix);
   if (wavegru == nullptr) {
-    LOG(ERROR) << "Could not create wavegru.";
+    fprintf(stderr, "Could not create wavegru model.\n");
     return nullptr;
   }
 
   auto merge_filter = BufferMerger::Create(wavegru->num_split_bands());
   if (merge_filter == nullptr) {
-    LOG(ERROR) << "Could not create merge filter.";
+    fprintf(stderr, "Could not create merge filter.\n");
     return nullptr;
   }
   // WrapUnique is used because of private c'tor.
@@ -84,8 +83,8 @@ WavegruModelImpl::WavegruModelImpl(
     band.reserve(num_samples_per_hop_ / wavegru_->num_split_bands());
   }
   background_threads_.reserve(num_threads - 1);
-  LOG(INFO) << "Feature size: " << num_features;
-  LOG(INFO) << "Number of samples per hop: " << num_samples_per_hop_;
+  fprintf(stderr, "Feature size: %d\n", num_features);
+  fprintf(stderr, "Number of samples per hop: %d\n", num_samples_per_hop_);
 
   conditioning_ = absl::make_unique<ConditioningType>(
       num_features, num_cond_hiddens, wavegru_->num_gru_hiddens(),
@@ -124,7 +123,7 @@ absl::optional<std::vector<int16_t>> WavegruModelImpl::GenerateSamples(
   if (background_threads_.empty() && num_threads_ > 1) {
     // |tid| = 0 is reserved for the main thread which will be returned to the
     // caller.
-    LOG(INFO) << "Starting up background threads for wavegru.";
+    fprintf(stderr, "Starting %d background threads for wavegru.\n", num_threads_ - 1);
     for (int tid = 1; tid < num_threads_; ++tid) {
       auto f = [&, tid]() {
         wavegru_->SampleThreaded(tid, conditioning_.get(),
@@ -158,8 +157,11 @@ absl::optional<std::vector<int16_t>> WavegruModelImpl::GenerateSamples(
     int num_samples_generated = wavegru_->SampleThreaded(
         kLocalTid, conditioning_.get(), &model_split_samples_,
         num_samples_to_generate);
-    CHECK_EQ(num_samples_generated, num_samples_to_generate)
-        << "Model did not generate the right number of samples.";
+    if (num_samples_generated != num_samples_to_generate) {
+      fprintf(stderr, "Generated %d samples instead of %d.\n",
+              num_samples_generated, num_samples_to_generate);
+      exit(EXIT_FAILURE);
+    }
     return model_split_samples_;
   };
 

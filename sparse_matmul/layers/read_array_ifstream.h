@@ -46,7 +46,7 @@ absl::Status ReadArrayIfstream(const std::string& file_name,
   std::stringstream buffer;
   buffer << in_stream.rdbuf();
   if (buffer.str().empty()) {
-    LOG(ERROR) << "File " << complete_path << " was empty.";
+    std::cerr << "File " << complete_path << " was empty." << std::endl;
     return absl::UnknownError(
         absl::Substitute("File $0 was empty", complete_path.string()));
   }

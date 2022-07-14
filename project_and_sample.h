@@ -30,7 +30,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "glog/logging.h"
 #include "lyra_types.h"
 #include "sparse_matmul/sparse_matmul.h"
 
@@ -89,22 +88,29 @@ class ProjectAndSample {
     auto LoadLayer =
         csrblocksparse::LoadSparseLayer<ProjWeightType, ProjRhsType,
                                         DiskWeightType>;
-    CHECK(LoadLayer(prefix + "proj_", zipped, &proj_layer_, path).ok());
-
+    if (!LoadLayer(prefix + "proj_", zipped, &proj_layer_, path).ok()) {
+      exit(EXIT_FAILURE);
+    }
     auto LoadMixLayer =
         csrblocksparse::LoadLogitLayer<MixWeightType, ProjMatMulOutType,
                                        DiskWeightType>;
-    CHECK(LoadMixLayer(prefix + "mix_", zipped, path, &mix_layer_).ok());
+    if (!LoadMixLayer(prefix + "mix_", zipped, path, &mix_layer_).ok()) {
+      exit(EXIT_FAILURE);
+    }
 
     auto LoadMeanLayer =
         csrblocksparse::LoadLogitLayer<MeanWeightType, ProjMatMulOutType,
                                        DiskWeightType>;
-    CHECK(LoadMeanLayer(prefix + "means_", zipped, path, &mean_layer_).ok());
+    if (!LoadMeanLayer(prefix + "means_", zipped, path, &mean_layer_).ok()) {
+      exit(EXIT_FAILURE);
+    }
 
     auto LoadScaleLayer =
         csrblocksparse::LoadLogitLayer<ScaleWeightType, ProjMatMulOutType,
                                        DiskWeightType>;
-    CHECK(LoadScaleLayer(prefix + "scales_", zipped, path, &scale_layer_).ok());
+    if (!LoadScaleLayer(prefix + "scales_", zipped, path, &scale_layer_).ok()) {
+      exit(EXIT_FAILURE);
+    }
   }
 
   ~ProjectAndSample() {}
@@ -118,10 +124,15 @@ class ProjectAndSample {
     } else {
       barrier_ = nullptr;
     }
-    CHECK_EQ(num_threads, proj_layer_.PrepareForThreads(num_threads));
-    CHECK_EQ(1, mix_layer_.PrepareForThreads(1));
-    CHECK_EQ(1, mean_layer_.PrepareForThreads(1));
-    CHECK_EQ(1, scale_layer_.PrepareForThreads(1));
+    if (num_threads != proj_layer_.PrepareForThreads(num_threads)) {
+      exit(EXIT_FAILURE);
+    }
+
+    if (mix_layer_.PrepareForThreads(1) != 1 || mean_layer_.PrepareForThreads(
+                                                    1) != 1 ||
+        scale_layer_.PrepareForThreads(1) != 1) {
+      exit(EXIT_FAILURE);
+    }
     return this->num_threads_;
   }
 
@@ -163,7 +174,7 @@ class ProjectAndSample {
         absl::StrCat(absl::ToDoubleSeconds(proj_duration_), "\t",
                      absl::ToDoubleSeconds(mixture_of_logistics_duration_),
                      "\t", absl::ToDoubleSeconds(samp_duration_), "\n");
-    LOG(INFO) << "Times=proj, mixture_of_logistics, samp=" << times;
+    std::cout << "Times=proj, mixture_of_logistics, samp=" << times;
     return times;
   }
 
@@ -188,9 +199,10 @@ class ProjectAndSample {
     // vector with a value that will not disturb the softmax calculation.
     mixes_.FillWith(
         static_cast<MixMatMulOutType>(std::numeric_limits<float>::lowest()));
-    CHECK_EQ(size, mix_layer_.cols());
-    CHECK_EQ(size, mean_layer_.cols());
-    CHECK_EQ(size, scale_layer_.cols());
+    if (size != mix_layer_.cols() || size != mean_layer_.cols() || size !=
+                                                                    scale_layer_.cols()) {
+      exit(EXIT_FAILURE);
+    }
     means_ = std::move(
         csrblocksparse::CacheAlignedVector<MeanMatMulOutType>(output_bins));
     scales_ = std::move(
@@ -200,7 +212,7 @@ class ProjectAndSample {
 
   void MolSamples(int tid, std::minstd_rand* thread_local_gen, int num_samples,
                   int* output_samples) {
-    DCHECK_NE(output_samples, nullptr);
+    //DCHECK_NE(output_samples, nullptr);
     absl::Time t_start;
     if (time_components_) t_start = absl::Now();
     if (tid == 0) {

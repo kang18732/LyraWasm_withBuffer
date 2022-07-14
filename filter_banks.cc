@@ -22,7 +22,6 @@
 #include "absl/memory/memory.h"
 #include "absl/types/span.h"
 #include "filter_banks_interface.h"
-#include "glog/logging.h"
 #include "quadrature_mirror_filter.h"
 
 namespace chromemedia {
@@ -43,7 +42,7 @@ int IntLogTwo(int x) {
 
 std::unique_ptr<SplitFilter> SplitFilter::Create(int num_bands) {
   if (!IsPowerOfTwo(num_bands)) {
-    LOG(ERROR) << "Number of bands has to be a power of 2, but was "
+    std::cerr << "Number of bands has to be a power of 2, but was "
                << num_bands << ".";
     return nullptr;
   }
@@ -62,9 +61,11 @@ SplitFilter::SplitFilter(int num_bands) : num_bands_(num_bands) {
 
 std::vector<std::vector<int16_t>> SplitFilter::Split(
     absl::Span<const int16_t> signal) {
-  CHECK_EQ(signal.size() % num_bands_, 0)
-      << "The number of samples has to be divisible by " << num_bands_
-      << ", but was " << signal.size() << ".";
+  if (signal.size() % num_bands_ != 0) {
+   std::cerr << "The number of samples has to be divisible by " << num_bands_
+    << ", but was " << signal.size() << ".";
+   exit(EXIT_FAILURE);
+  }
   std::vector<std::vector<int16_t>> old_bands;
   old_bands.push_back(std::vector<int16_t>(signal.begin(), signal.end()));
   for (std::vector<SplitQuadratureMirrorFilter<int16_t>>& filters :
@@ -89,7 +90,7 @@ std::vector<std::vector<int16_t>> SplitFilter::Split(
 
 std::unique_ptr<MergeFilter> MergeFilter::Create(int num_bands) {
   if (!IsPowerOfTwo(num_bands)) {
-    LOG(ERROR) << "Number of bands has to be a power of 2, but was "
+    std::cerr << "Number of bands has to be a power of 2, but was "
                << num_bands << ".";
     return nullptr;
   }
@@ -109,15 +110,19 @@ MergeFilter::MergeFilter(int num_bands) : MergeFilterInterface(num_bands) {
 
 std::vector<int16_t> MergeFilter::Merge(
     const std::vector<std::vector<int16_t>>& bands) {
-  CHECK_EQ(bands.size(), num_bands_)
-      << "The number of bands has to be " << num_bands_ << ", but was "
-      << bands.size() << ".";
+  if (bands.size() != num_bands_) {
+    std::cerr << "The number of bands has to be " << num_bands_ << ", but was "
+    << bands.size() << ".";
+    exit(EXIT_FAILURE);
+  }
   const int band_size = bands.at(0).size();
   for (int band = 0; band < bands.size(); ++band) {
-    CHECK_EQ(bands.at(band).size(), band_size)
-        << "The number of samples of all bands has to be the same, but was "
-        << band_size << " for the first band and " << bands.at(band).size()
-        << " for the band number " << band + 1 << ".";
+    if (bands.at(band).size() != band_size) {
+     std::cerr << "The number of samples of all bands has to be the same, but was "
+      << band_size << " for the first band and " << bands.at(band).size()
+      << " for the band number " << band + 1 << ".";
+     exit(EXIT_FAILURE);
+    }
   }
   std::vector<std::vector<int16_t>> old_bands(bands);
   for (std::vector<MergeQuadratureMirrorFilter<int16_t>>& filters :

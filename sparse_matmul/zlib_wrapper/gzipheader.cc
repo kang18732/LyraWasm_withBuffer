@@ -20,7 +20,6 @@
 #include <algorithm>
 
 #include "absl/base/macros.h"
-#include "glog/logging.h"
 #include "zlib.h"  // for Z_DEFAULT_COMPRESSION
 
 namespace csrblocksparse {
@@ -39,7 +38,9 @@ const uint8_t GZipHeader::magic[] = {0x1f, 0x8b};
 
 GZipHeader::Status GZipHeader::ReadMore(const char* inbuf, int inbuf_len,
                                         const char** header_end) {
-  CHECK_GE(inbuf_len, 0);
+  if (inbuf_len < 0) {
+    exit(EXIT_FAILURE);
+  }
   const uint8_t* pos = reinterpret_cast<const uint8_t*>(inbuf);
   const uint8_t* const end = pos + inbuf_len;
 

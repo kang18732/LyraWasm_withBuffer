@@ -27,7 +27,6 @@
 #include "audio/dsp/mfcc/mel_filterbank.h"
 #include "audio/dsp/number_util.h"
 #include "audio/dsp/spectrogram/spectrogram.h"
-#include "glog/logging.h"
 
 namespace chromemedia {
 namespace codec {
@@ -55,14 +54,14 @@ LogMelSpectrogramExtractorImpl::Create(int sample_rate_hz, int num_mel_bins,
                                        int hop_length_samples,
                                        int window_length_samples) {
   if (window_length_samples < hop_length_samples) {
-    LOG(ERROR) << "Window length samples was " << window_length_samples
+    std::cerr << "Window length samples was " << window_length_samples
                << " but must be >= hop length samples which was "
                << hop_length_samples;
     return nullptr;
   }
   auto spectrogram = absl::make_unique<audio_dsp::Spectrogram>();
   if (!spectrogram->Initialize(window_length_samples, hop_length_samples)) {
-    LOG(ERROR) << "Could not initialize spectrogram for feature extraction.";
+    std::cerr << "Could not initialize spectrogram for feature extraction.";
     return nullptr;
   }
   // To get a spectrogram for the first audio of hop length samples we first
@@ -71,7 +70,7 @@ LogMelSpectrogramExtractorImpl::Create(int sample_rate_hz, int num_mel_bins,
   if (!spectrogram->ComputeSpectrogram(
           std::vector<double>(window_length_samples, 0.0),
           &unused_spectrogram_slices)) {
-    LOG(ERROR) << "Error calculating spectrogram of empty window.";
+    std::cerr << "Error calculating spectrogram of empty window.";
     return nullptr;
   }
 
@@ -84,7 +83,7 @@ LogMelSpectrogramExtractorImpl::Create(int sample_rate_hz, int num_mel_bins,
   if (!mel_filterbank->Initialize(kFftBins, sample_rate_hz, num_mel_bins,
                                   kLowerFreqLimit,
                                   GetUpperFreqLimit(sample_rate_hz))) {
-    LOG(ERROR) << "Could not initialize mel filterbank for feature extraction.";
+    std::cerr << "Could not initialize mel filterbank for feature extraction.";
     return nullptr;
   }
 
@@ -95,7 +94,7 @@ LogMelSpectrogramExtractorImpl::Create(int sample_rate_hz, int num_mel_bins,
 absl::optional<std::vector<float>> LogMelSpectrogramExtractorImpl::Extract(
     const absl::Span<const int16_t> audio) {
   if (audio.size() != hop_length_samples_) {
-    LOG(ERROR) << "Audio frame should have " << hop_length_samples_
+    std::cerr << "Audio frame should have " << hop_length_samples_
                << " samples but instead had " << audio.size() << ".";
     return absl::nullopt;
   }
@@ -104,11 +103,11 @@ absl::optional<std::vector<float>> LogMelSpectrogramExtractorImpl::Extract(
 
   std::vector<std::vector<double>> spectrogram_slices;
   if (!spectrogram_->ComputeSpectrogram(samples_, &spectrogram_slices)) {
-    LOG(ERROR) << "Could not compute spectrogram from audio.";
+    std::cerr << "Could not compute spectrogram from audio.";
     return absl::nullopt;
   }
   if (spectrogram_slices.size() != 1) {
-    LOG(ERROR) << "Spectrogram had unexpected number of output frames.";
+    std::cerr << "Spectrogram had unexpected number of output frames.";
     return absl::nullopt;
   }
 

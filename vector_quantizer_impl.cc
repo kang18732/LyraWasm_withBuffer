@@ -27,7 +27,6 @@
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
 #include "audio/dsp/signal_vector_util.h"
-#include "glog/logging.h"
 #include "include/ghc/filesystem.hpp"
 #include "sparse_matmul/sparse_matmul.h"
 
@@ -76,13 +75,13 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
   auto status = csrblocksparse::ReadArrayFromFile(
       kPrefix + "mean_vectors.gz", &mean_vector_array, model_path.string());
   if (!status.ok()) {
-    LOG(ERROR) << "Couldn't read " << model_path / (kPrefix + "mean_vectors.gz")
+    std::cerr << "Couldn't read " << model_path / (kPrefix + "mean_vectors.gz")
                << ": " << status.message();
     return nullptr;
   }
 
   if (num_bits > kMaxNumQuantizedBits) {
-    LOG(ERROR) << "Specified number of bits " << num_bits
+    std::cerr << "Specified number of bits " << num_bits
                << "exceeds the compile-time maximum " << kMaxNumQuantizedBits;
     return nullptr;
   }
@@ -92,7 +91,7 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
                                              &flat_transformation_matrix_array,
                                              model_path.string());
   if (!status.ok()) {
-    LOG(ERROR) << "Couldn't read " << model_path / (kPrefix + "transmat.gz")
+    std::cerr << "Couldn't read " << model_path / (kPrefix + "transmat.gz")
                << ": " << status.message();
     return nullptr;
   }
@@ -102,7 +101,7 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
                                              &flattened_code_vectors,
                                              model_path.string());
   if (!status.ok()) {
-    LOG(ERROR) << "Couldn't read " << model_path / (kPrefix + "code_vectors.gz")
+    std::cerr << "Couldn't read " << model_path / (kPrefix + "code_vectors.gz")
                << ": " << status.message();
     return nullptr;
   }
@@ -112,7 +111,7 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
                                              &codebook_dimensions,
                                              model_path.string());
   if (!status.ok()) {
-    LOG(ERROR) << "Couldn't read "
+    std::cerr << "Couldn't read "
                << model_path / (kPrefix + "codebook_dimensions.gz") << ": "
                << status.message();
     return nullptr;
@@ -134,13 +133,13 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
     const std::vector<float>& flattened_code_vectors,
     const std::vector<int16_t>& codebook_dimensions) {
   if (mean_vector.size() != num_features) {
-    LOG(ERROR) << "Expected mean vector to be length " << num_features
+    std::cerr << "Expected mean vector to be length " << num_features
                << " but was of size " << mean_vector.size();
     return nullptr;
   }
   if (transformation_matrix.cols() == 0 ||
       transformation_matrix.cols() != transformation_matrix.rows()) {
-    LOG(ERROR) << "Expected transformation matrix to be square with size "
+    std::cerr << "Expected transformation matrix to be square with size "
                << num_features << "x" << num_features << " but was "
                << transformation_matrix.rows() << "x"
                << transformation_matrix.cols();
@@ -148,7 +147,7 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
   }
 
   if (mean_vector.size() != transformation_matrix.cols()) {
-    LOG(ERROR) << "Rows of mean vector " << mean_vector.size()
+    std::cerr << "Rows of mean vector " << mean_vector.size()
                << " do not match " << transformation_matrix.cols()
                << " columns of transformation matrix.";
     return nullptr;
@@ -156,7 +155,7 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
 
   if (!Eigen::FullPivLU<Eigen::MatrixXf>(transformation_matrix)
            .isInvertible()) {
-    LOG(ERROR) << "Transformation Matrix is not invertible.";
+    std::cerr << "Transformation Matrix is not invertible.";
     return nullptr;
   }
 
@@ -165,7 +164,7 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
     total_dimensionality += codebook_dimensions[i];
   }
   if (total_dimensionality != num_features) {
-    LOG(ERROR) << "Codebook must have the same dimensionality as the "
+    std::cerr << "Codebook must have the same dimensionality as the "
                << "feature space (" << total_dimensionality << " vs "
                << num_features << ").";
     return nullptr;
@@ -175,7 +174,7 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
       CodeVectorsToCodebooks(flattened_code_vectors, codebook_dimensions);
   for (const auto& codebook : codebooks) {
     if (codebook.empty()) {
-      LOG(ERROR) << "Codebook did not have any code vectors in it.";
+      std::cerr << "Codebook did not have any code vectors in it.";
       return nullptr;
     }
   }
@@ -198,7 +197,7 @@ VectorQuantizerImpl::VectorQuantizerImpl(
 absl::optional<std::string> VectorQuantizerImpl::Quantize(
     const std::vector<float>& features) const {
   if (features.size() != num_features_) {
-    LOG(ERROR) << "There were " << features.size()
+    std::cerr << "There were " << features.size()
                << " features to be quantized but expected " << num_features_;
     return absl::nullopt;
   }
@@ -268,7 +267,9 @@ std::vector<float> VectorQuantizerImpl::DecodeToLossyFeatures(
     // far.
     int current_num_bits = static_cast<int>(
         std::ceil(std::log2(static_cast<float>(codebook.size()))));
-    CHECK(bit_shift_amount >= current_num_bits);
+    if (bit_shift_amount < current_num_bits) {
+      exit(EXIT_FAILURE);
+    }
     bit_shift_amount -= current_num_bits;
     // Mask off bits we have already seen.
     const std::bitset<kMaxNumQuantizedBits> kPreviouslySeenMask(

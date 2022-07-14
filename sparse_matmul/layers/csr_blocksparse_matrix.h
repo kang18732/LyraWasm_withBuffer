@@ -24,7 +24,6 @@
 #include <tuple>
 #include <vector>
 
-#include "glog/logging.h"
 // IWYU pragma: begin_exports
 #include "sparse_matmul/compute/kernels_generic.h"
 #include "sparse_matmul/compute/matmul.h"
@@ -119,10 +118,12 @@ class CsrBlockSparseMatrix {
       else
         diff *= block_width_ * (col_indices[i] - col_indices[i - 1]);
 
-      CHECK(diff < std::numeric_limits<DeltaType>::max())
-          << "delta between column indices in bytes " << diff
-          << " exceeded the maximum size of the DeltaType "
-          << std::numeric_limits<DeltaType>::max();
+      if (diff >= std::numeric_limits<DeltaType>::max()) {
+        std::cerr << "delta between column indices in bytes " << diff
+                  << " exceeded the maximum size of the DeltaType "
+                  << std::numeric_limits<DeltaType>::max() << std::endl;
+        exit(EXIT_FAILURE);
+      }
       col_deltas.push_back(static_cast<DeltaType>(diff));
     }
 
@@ -321,8 +322,10 @@ class CsrBlockSparseMatrix {
     bytes += col_deltas_.size() * sizeof(DeltaType);
     bytes += nnz_per_row_.size() * sizeof(int);
 
-    uint8_t* bytes_ptr_ptr =
-        reinterpret_cast<uint8_t*>(CHECK_NOTNULL(malloc(bytes)));
+    uint8_t* bytes_ptr_ptr = reinterpret_cast<uint8_t*>(malloc(bytes));
+    if (bytes_ptr_ptr == nullptr) {
+      exit(EXIT_FAILURE);
+    }
 
     int* int_bytes_ptr = reinterpret_cast<int*>(bytes_ptr_ptr);
 
@@ -361,7 +364,9 @@ class CsrBlockSparseMatrix {
   }
 
   void ReadFromFlatBuffer(const uint8_t* const& bytes, const std::size_t& len) {
-    CHECK_GE(len, FixedParameterSize());
+    if (len < FixedParameterSize()) {
+      exit(EXIT_FAILURE);
+    }
 
     const int* int_bytes_ptr = reinterpret_cast<const int*>(bytes);
     rows_ = *int_bytes_ptr++;
@@ -389,8 +394,11 @@ class CsrBlockSparseMatrix {
         FixedParameterSize() + weights_size * sizeof(WeightType) +
         col_deltas_size * sizeof(DeltaType) + nnz_per_row_size * sizeof(int);
 
-    CHECK_EQ(total_bytes, len)
-        << "total bytes: " << total_bytes << ", actual len given: " << len;
+    if (total_bytes != len) {
+      std::cout << "total bytes: " << total_bytes
+                << ", actual len given: " << len << std::endl;
+      exit(EXIT_FAILURE);
+    }
 
     const uint8_t* bytes_ptr =
         reinterpret_cast<const uint8_t*>(float_bytes_ptr);
@@ -432,10 +440,18 @@ class CsrBlockSparseMatrix {
                  SpinBarrier* barrier = nullptr) const {
     static_assert(std::is_same<typename RhsClass::value_type, RhsType>::value,
                   "Rhs types must match");
-    CHECK_LT(tid, num_threads_);
-    CHECK_EQ(rhs.cols(), out->cols());
-    CHECK_EQ(rhs.rows(), cols_);
-    CHECK_GE(out->rows(), rows_);
+    if (tid >= num_threads_) {
+      exit(EXIT_FAILURE);
+    }
+    if (rhs.cols() != out->cols()) {
+        exit(EXIT_FAILURE);
+    }
+    if (rhs.rows() != cols_) {
+        exit(EXIT_FAILURE);
+    }
+    if (out->rows() < rows_) {
+      exit(EXIT_FAILURE);
+    }
     int cols_to_go = out->cols();
     int rhs_index = *thread_bounds_.OffsetRhsIndices(rhs_indices_.data(), tid);
     const RhsType* rhs_ptr = rhs.data() + rhs_index * block_height_;
@@ -489,8 +505,13 @@ class CsrBlockSparseMatrix {
   template <typename MVRhsType, typename MVBiasType, typename OutType>
   void MatVec(const MVRhsType* rhs, const MVBiasType* bias, bool relu, int tid,
               int replicas, int output_stride, OutType* output) {
-    CHECK_LT(tid, num_threads_);
-    CHECK_EQ(block_width_, 4) << "Block width must be 4!";
+    if (tid >= num_threads_) {
+      exit(EXIT_FAILURE);
+    }
+    if (block_width_ != 4) {
+      std::cerr << "Block width must be 4!" << std::endl;
+      exit(EXIT_FAILURE);
+    }
     if (block_height_ == 8) {
       matmul_.MatVec8x4(
           thread_bounds_.OffsetWeights(weights_.cast_data(), tid), rhs,
@@ -499,7 +520,10 @@ class CsrBlockSparseMatrix {
           thread_bounds_.StartRow(tid), thread_bounds_.StartRow(tid + 1), relu,
           replicas, output_stride, thread_bounds_.OffsetOutput(output, tid));
     } else {
-      CHECK_EQ(block_height_, 4) << "Block height must be 4 or 8!";
+      if (block_height_ != 4) {
+        std::cerr << "Block height must be 4!" << std::endl;
+        exit(EXIT_FAILURE);
+      }
       matmul_.MatVec4x4(
           thread_bounds_.OffsetWeights(weights_.cast_data(), tid), rhs,
           thread_bounds_.OffsetBias(bias, tid), nnz_per_row_.data(),
@@ -590,7 +614,9 @@ class CsrBlockSparseMatrix {
   // Returns the maximum number of threads that can be used; <= |num_threads|.
   template <typename OutType = int32_t>
   int PrepareForThreads(int num_threads, int cache_line_size = -1) {
-    CHECK_GT(num_threads, 0);
+    if (num_threads <= 0) {
+      exit(EXIT_FAILURE);
+    }
     // we've already prepared for this number of threads, nothing to do
     if (num_threads == num_threads_) return num_threads_;
 

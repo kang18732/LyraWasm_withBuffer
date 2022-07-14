@@ -19,11 +19,11 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include <iostream>
 #include <algorithm>
 #include <memory>
 #include <string>
 
-#include "glog/logging.h"
 #include "sparse_matmul/zlib_wrapper/gzipheader.h"
 #include "zconf.h"
 #include "zlib.h"
@@ -114,8 +114,9 @@ void ZLib::Reset() {
 void ZLib::CheckValidParams() {
   if (settings_.dictionary_ != nullptr &&
       (settings_.no_header_mode_ || settings_.gzip_header_mode_)) {
-    LOG(FATAL)
-        << "Incompatible params: require zlib headers with preset dictionary";
+    std::cerr
+        << "Incompatible params: require zlib headers with preset dictionary" << std::endl;
+    exit(EXIT_FAILURE);
   }
 }
 
@@ -529,7 +530,8 @@ int ZLib::UncompressAtMostOrAll(Bytef* dest, uLongf* destLen,
           crc_ = crc32(0, nullptr, 0);  // initialize CRC
           break;
         default:
-          LOG(FATAL) << "Unexpected gzip header parsing result: " << status;
+          std::cerr << "Unexpected gzip header parsing result: " << status << std::endl;
+          exit(EXIT_FAILURE);
       }
     }
   } else if (gzip_footer_bytes_ >= 0) {
@@ -538,11 +540,11 @@ int ZLib::UncompressAtMostOrAll(Bytef* dest, uLongf* destLen,
         // When this flag is true, we allow some extra bytes after the
         // gzip footer.
         !should_be_flexible_with_gzip_footer_) {
-      VLOG(1) << "UncompressChunkOrAll: Received "
-              << (gzip_footer_bytes_ + *sourceLen - sizeof(gzip_footer_))
-              << " extra bytes after gzip footer: "
-              << std::string(reinterpret_cast<const char*>(source),
-                             std::min(*sourceLen, 20UL));
+//      VLOG(1) << "UncompressChunkOrAll: Received "
+//              << (gzip_footer_bytes_ + *sourceLen - sizeof(gzip_footer_))
+//              << " extra bytes after gzip footer: "
+//              << std::string(reinterpret_cast<const char*>(source),
+//                             std::min(*sourceLen, 20UL));
       Reset();
       return Z_DATA_ERROR;
     }
@@ -558,8 +560,8 @@ int ZLib::UncompressAtMostOrAll(Bytef* dest, uLongf* destLen,
   }
 
   if ((err = UncompressInit(dest, destLen, source, sourceLen)) != Z_OK) {
-    LOG(WARNING) << "ZLib: UncompressInit: Error: " << err
-                 << "SourceLen: " << *sourceLen;
+    std::cout << "ZLib: UncompressInit: Error: " << err
+                 << "SourceLen: " << *sourceLen << std::endl;
     return err;
   }
 
@@ -581,8 +583,8 @@ int ZLib::UncompressAtMostOrAll(Bytef* dest, uLongf* destLen,
         err = inflateSetDictionary(&uncomp_stream_, settings_.dictionary_,
                                    settings_.dict_len_);
         if (err != Z_OK) {
-          LOG(WARNING) << "inflateSetDictionary: Error: " << err
-                       << " dict_len: " << settings_.dict_len_;
+          std::cerr << "inflateSetDictionary: Error: " << err
+                       << " dict_len: " << settings_.dict_len_ << std::endl;
           UncompressErrorInit();
           return err;
         }
@@ -612,8 +614,8 @@ int ZLib::UncompressAtMostOrAll(Bytef* dest, uLongf* destLen,
     err = inflateSetDictionary(&uncomp_stream_, settings_.dictionary_,
                                settings_.dict_len_);
     if (err != Z_OK) {
-      LOG(WARNING) << "UncompressChunkOrAll: failed in inflateSetDictionary : "
-                   << err;
+      std::cerr << "UncompressChunkOrAll: failed in inflateSetDictionary : "
+                   << err << std::endl;
       UncompressErrorInit();
       return err;
     }
@@ -624,7 +626,11 @@ int ZLib::UncompressAtMostOrAll(Bytef* dest, uLongf* destLen,
 
   // Figure out how many bytes of the input zlib slurped up:
   const uLong bytes_read = uncomp_stream_.total_in - old_total_in;
-  CHECK_LE(source + bytes_read, source + *sourceLen);
+
+  if(source + bytes_read > source + *sourceLen) {
+    exit(EXIT_FAILURE);
+  }
+
   *sourceLen = uncomp_stream_.avail_in;
 
   // Next we look at the footer, if any. Note that we might currently
@@ -655,17 +661,17 @@ int ZLib::UncompressAtMostOrAll(Bytef* dest, uLongf* destLen,
              && uncomp_stream_.avail_in == 0) {    // and we read it all
     {}
   } else if (err == Z_STREAM_END && uncomp_stream_.avail_in > 0) {
-    VLOG(1) << "UncompressChunkOrAll: Received some extra data, bytes total: "
-            << uncomp_stream_.avail_in << " bytes: "
-            << std::string(
-                   reinterpret_cast<const char*>(uncomp_stream_.next_in),
-                   std::min(static_cast<int>(uncomp_stream_.avail_in), 20));
+//    VLOG(1) << "UncompressChunkOrAll: Received some extra data, bytes total: "
+//            << uncomp_stream_.avail_in << " bytes: "
+//            << std::string(
+//                   reinterpret_cast<const char*>(uncomp_stream_.next_in),
+//                   std::min(static_cast<int>(uncomp_stream_.avail_in), 20));
     UncompressErrorInit();
     return Z_DATA_ERROR;  // what's the extra data for?
   } else if (err != Z_OK && err != Z_STREAM_END && err != Z_BUF_ERROR) {
     // an error happened
-    VLOG(1) << "UncompressChunkOrAll: Error: " << err
-            << " avail_out: " << uncomp_stream_.avail_out;
+//    VLOG(1) << "UncompressChunkOrAll: Error: " << err
+//            << " avail_out: " << uncomp_stream_.avail_out;
     UncompressErrorInit();
     return err;
   } else if (uncomp_stream_.avail_out == 0) {
@@ -808,11 +814,11 @@ int ZLib::UncompressGzipAndAllocate(Bytef** dest, uLongf* destLen,
   // Do not trust the uncompress size reported by the compressed buffer.
   if (uncompress_length > *destLen) {
     if (!HasGzipHeader(reinterpret_cast<const char*>(source), sourceLen)) {
-      VLOG(1) << "Attempted to un-gzip data that is not gzipped.";
+//      VLOG(1) << "Attempted to un-gzip data that is not gzipped.";
       return Z_DATA_ERROR;
     }
-    VLOG(1) << "Uncompressed size " << uncompress_length
-            << " exceeds maximum expected size " << *destLen;
+//    VLOG(1) << "Uncompressed size " << uncompress_length
+//            << " exceeds maximum expected size " << *destLen;
     return Z_MEM_ERROR;  // probably a corrupted gzip buffer
   }
 

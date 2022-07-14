@@ -24,8 +24,6 @@
 #include <iostream>
 #include <type_traits>
 
-#include "glog/logging.h"
-
 namespace csrblocksparse {
 
 // Useful for meta-programming and determining if a type is a fixed point type
@@ -67,8 +65,8 @@ class fixed16 : fixed16_type {
     const float min_bound = std::numeric_limits<int16_t>::min();
     auto val =
         static_cast<int16_t>(std::max(std::min(fval, max_bound), min_bound));
-    LOG_IF(INFO, fval > max_bound || fval < min_bound)
-        << "Conversion clipping: " << x << " to " << fixed16_to_float(val);
+//    LOG_IF(INFO, fval > max_bound || fval < min_bound)
+//        << "Conversion clipping: " << x << " to " << fixed16_to_float(val);
     return val;
   }
 
@@ -113,8 +111,8 @@ class fixed32 : fixed32_type {
                              ? min_bound
                              : static_cast<int32_t>(fval));
 
-    LOG_IF(INFO, fval >= max_bound || fval < min_bound)
-        << "Conversion clipping: " << x << " to " << fixed32_to_float(val);
+//    LOG_IF(INFO, fval >= max_bound || fval < min_bound)
+//        << "Conversion clipping: " << x << " to " << fixed32_to_float(val);
     return val;
   }
 

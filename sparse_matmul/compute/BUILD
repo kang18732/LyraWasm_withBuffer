@@ -69,7 +69,6 @@ cc_library(
         "//sparse_matmul:__subpackages__",
     ],
     deps = [
-        "@com_google_glog//:glog",
     ],
 )
 

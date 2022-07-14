@@ -23,7 +23,6 @@
 #include "absl/types/span.h"
 #include "audio/dsp/resampler_q.h"
 #include "dsp_util.h"
-#include "glog/logging.h"
 
 namespace chromemedia {
 namespace codec {
@@ -38,7 +37,7 @@ std::unique_ptr<Resampler> Resampler::Create(double input_sample_rate_hz,
   audio_dsp::QResampler<float> dsp_resampler(
       input_sample_rate_hz, target_sample_rate_hz, /*num_channels=*/1, params);
   if (!dsp_resampler.Valid()) {
-    LOG(ERROR) << "Error creating QResampler.";
+    std::cerr << "Error creating QResampler." << std::endl;
     return nullptr;
   }
   return absl::WrapUnique(new Resampler(dsp_resampler));

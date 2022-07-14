@@ -26,7 +26,6 @@
 #include "absl/memory/memory.h"
 #include "filter_banks.h"
 #include "filter_banks_interface.h"
-#include "glog/logging.h"
 
 namespace chromemedia {
 namespace codec {
@@ -34,7 +33,7 @@ namespace codec {
 std::unique_ptr<BufferMerger> BufferMerger::Create(int num_bands) {
   auto merge_filter = MergeFilter::Create(num_bands);
   if (merge_filter == nullptr) {
-    LOG(ERROR) << "Cannot create a MergeFilter with " << num_bands << " bands.";
+    fprintf(stderr, "Failed to create merge filter with %d bands.\n", num_bands);
     return nullptr;
   }
 
@@ -74,7 +73,11 @@ std::vector<int16_t> BufferMerger::BufferAndMerge(
 
   // 3. Merge the buffer of split samples if needed to produce new samples.
   const std::vector<int16_t> new_samples = MergeSamples(new_split_samples);
-  CHECK_EQ(new_samples.size(), num_samples_to_generate);
+  if (new_samples.size() != num_samples_to_generate) {
+    fprintf(stderr, "Failed to generate %d samples.\n",
+            num_samples_to_generate);
+    exit(EXIT_FAILURE);
+  }
 
   // 4. Copy the new samples to output and the leftover buffers.
   CopyNewSamples(new_samples, num_samples, num_leftover_used, &samples);
@@ -109,7 +112,10 @@ void BufferMerger::CopyNewSamples(const std::vector<int16_t>& new_samples,
   // Copy the needed samples to the destination, which already has some
   // leftover samples from the last run.
   const int num_samples_to_copy = num_samples - num_leftover_used;
-  CHECK_GE(new_samples.size(), num_samples_to_copy);
+  if (new_samples.size() < num_samples_to_copy) {
+    fprintf(stderr, "Failed to generate %d samples.\n", num_samples_to_copy);
+    exit(EXIT_FAILURE);
+  }
   std::copy(new_samples.begin(), new_samples.begin() + num_samples_to_copy,
             samples->begin() + num_leftover_used);
 

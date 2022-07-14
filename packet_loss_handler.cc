@@ -17,9 +17,9 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <stdio.h>
 
 #include "absl/memory/memory.h"
-#include "glog/logging.h"
 #include "naive_spectrogram_predictor.h"
 #include "noise_estimator.h"
 #include "noise_estimator_interface.h"
@@ -61,7 +61,7 @@ bool PacketLossHandler::SetReceivedFeatures(
   consecutive_lost_samples_ = 0;
 
   if (!noise_estimator_->Update(features)) {
-    LOG(ERROR) << "Unable to update noise estimator.";
+    fprintf(stderr, "Failed to update noise estimator.\n");
     return false;
   }
 
@@ -72,7 +72,8 @@ bool PacketLossHandler::SetReceivedFeatures(
 absl::optional<std::vector<float>> PacketLossHandler::EstimateLostFeatures(
     int num_samples) {
   if (num_samples <= 0) {
-    LOG(ERROR) << "Number of samples must be positive.";
+    fprintf(stderr, "num_samples must be greater than 0 but was %d.\n",
+            num_samples);
     return absl::nullopt;
   }
 

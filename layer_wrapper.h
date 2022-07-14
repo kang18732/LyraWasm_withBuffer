@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "dsp_util.h"
-#include "glog/logging.h"
 #include "layer_wrapper_interface.h"
 #include "sparse_matmul/sparse_matmul.h"
 
@@ -66,7 +65,7 @@ class LayerWrapper : public LayerWrapperInterface<WeightType, RhsType,
       return Conv1DLayerWrapper<WeightType, RhsType, OutputType,
                                 DiskWeightType>::Create(params);
     } else {
-      LOG(ERROR) << "Unrecognized type";
+      fprintf(stderr, "Unrecognized layer type.\n");
       return nullptr;
     }
   }
@@ -85,7 +84,7 @@ class LayerWrapper : public LayerWrapperInterface<WeightType, RhsType,
           csrblocksparse::LoadSparseLayer<WeightType, RhsType, DiskWeightType>;
       if (!LoadLayer(prefix, from_disk.zipped, layer.get(), from_disk.path)
                .ok()) {
-        LOG(ERROR) << layer_prompt << " loading failed.";
+        fprintf(stderr, "Loading %s failed.\n", layer_prompt.c_str());
         return nullptr;
       }
     } else {
@@ -94,23 +93,23 @@ class LayerWrapper : public LayerWrapperInterface<WeightType, RhsType,
           expected_rows, expected_cols, from_constant.sparsity,
           from_constant.value);
     }
-    LOG(INFO) << layer_prompt << " Shape: [" << layer->rows() << ", "
-              << layer->cols() << "]."
-              << " Sparsity: " << layer->sparsity();
+    fprintf(stderr, "%s Shape: [%d, %d]. Sparsity: %s\n", layer_prompt.c_str(),
+            layer->rows(), layer->cols(), std::to_string(layer->sparsity()).c_str());
 
     // Dimension checks for the loaded layer.
     if ((expected_rows > 0 && layer->rows() != expected_rows) ||
         (expected_cols > 0 && layer->cols() != expected_cols)) {
-      LOG(ERROR) << layer_prompt << "Incompatible layer shape: expecting "
-                 << "[ " << expected_rows << ", " << expected_cols << "], "
-                 << "but is [" << layer->rows() << ", " << layer->cols()
-                 << "].";
+      fprintf(
+          stderr,
+          "Dimension mismatch for %s. expecting [%d, %d], but is [%d, %d].\n",
+          layer_prompt.c_str(), expected_rows, expected_cols, layer->rows(),
+          layer->cols());
       return nullptr;
     }
 
     if (layer->PrepareForThreads(num_threads) != num_threads) {
-      LOG(ERROR) << layer_prompt << "Could not prepare for " << num_threads
-                 << " threads.";
+      fprintf(stderr, "Failed to prepare %s for %d threads.\n",
+              layer_prompt.c_str(), num_threads);
       return nullptr;
     }
     return layer;

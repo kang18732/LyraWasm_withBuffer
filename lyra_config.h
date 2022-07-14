@@ -26,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "glog/logging.h"
 #include "google/protobuf/text_format.h"
 #include "include/ghc/filesystem.hpp"
 #include "lyra_config.pb.h"
@@ -71,12 +70,17 @@ const std::string& GetVersionString();
 
 // Functions to get values depending on sample rate.
 inline int GetNumSamplesPerHop(int sample_rate_hz) {
-  CHECK_EQ(sample_rate_hz % kFrameRate, 0);
+  if (sample_rate_hz % kFrameRate != 0) {
+    exit(EXIT_FAILURE);
+  }
+
   return sample_rate_hz / kFrameRate;
 }
 
 inline int GetNumSamplesPerFrame(int sample_rate_hz) {
-  CHECK_EQ(sample_rate_hz % kFrameRate, 0);
+  if (sample_rate_hz % kFrameRate != 0) {
+    exit(EXIT_FAILURE);
+  }
   return kFrameOverlapFactor * (sample_rate_hz / kFrameRate);
 }
 

@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "absl/memory/memory.h"
-#include "glog/logging.h"
 #include "layer_wrapper.h"
 #include "sparse_matmul/sparse_matmul.h"
 
@@ -45,19 +44,19 @@ class TransposeConvolutionalLayerWrapper
     // TODO(b/161015017): Support more general stride and kernel size
     // combinations.
     if (params.kernel_size != params.stride) {
-      LOG(ERROR) << layer_prompt
+      std::cerr << layer_prompt
                  << "Transpose convolutional layer with |kernel_size| != "
                  << "|stride| is not supported.";
       return nullptr;
     }
     if (params.dilation != 1) {
-      LOG(ERROR) << layer_prompt
+      std::cerr << layer_prompt
                  << "Transpose convolutional layer with |dilation| != 1"
                  << "is not supported.";
       return nullptr;
     }
     if (params.skip_connection) {
-      LOG(ERROR) << layer_prompt
+      std::cerr << layer_prompt
                  << "Transpose convolutional layer does not support "
                  << "skip connections.";
       return nullptr;

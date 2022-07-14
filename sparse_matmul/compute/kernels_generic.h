@@ -254,7 +254,7 @@ SpMM5_1x1(const WeightType* weights_ptr, const int16_t* col_deltas_bytes,
 template <typename Type>
 typename std::enable_if<ShouldEnableGenericAdd<Type>::value>::type SumVectors(
     int start, int end, const Type* add1, const Type* add2, Type* result) {
-  LOG_FIRST_N(WARNING, 1) << "SumVectors: using generic kernel!";
+//  LOG_FIRST_N(WARNING, 1) << "SumVectors: using generic kernel!";
   for (int i = start; i < end; ++i) {
     Type sum = static_cast<Type>(static_cast<float>(add1[i]) +
                                  static_cast<float>(add2[i]));

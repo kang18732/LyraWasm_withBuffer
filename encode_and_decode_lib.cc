@@ -45,7 +45,7 @@ std::optional<std::vector<int16_t>> EncodeAndDecode(
     auto encoded_or = encoder->Encode(absl::MakeConstSpan(
         &wav_data.at(wav_iterator), num_samples_per_packet));
     if (!encoded_or.has_value()) {
-      LOG(ERROR) << "Unable to encode features starting at samples at byte "
+      std::cerr << "Unable to encode features starting at samples at byte "
                  << wav_iterator << ".";
       return std::nullopt;
     }

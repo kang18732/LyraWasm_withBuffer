@@ -221,7 +221,7 @@ class CacheAlignedVector {
   typename std::enable_if<std::is_same<Q, float>::value, int>::type Sample(
       float temperature, std::minstd_rand* gen,
       CacheAlignedVector<float>* scratch) const {
-    DCHECK(scratch->size() >= size_);
+    //DCHECK(scratch->size() >= size_);
     // Round down to nearest multiple of 8.
     int SIMD_iterations = 8 * (size_ / 8);
     float* scratch_ptr = scratch->data();
@@ -321,7 +321,7 @@ class CacheAlignedVector {
   typename std::enable_if<IsFixed32Type<Q>::value, int>::type Sample(
       float temperature, std::minstd_rand* gen,
       CacheAlignedVector<int>* scratch) const {
-    DCHECK(scratch->size() >= size_);
+    //DCHECK(scratch->size() >= size_);
     // Round down to nearest multiple of 8.
     int SIMD_iterations = 8 * (size_ / 8);
     int* scratch_ptr = scratch->data();
@@ -438,15 +438,15 @@ class CacheAlignedVector {
     // TODO(b/188821456) Don't ignore |tid| and |barrier|. Currently all threads
     // duplicate the same work and ignore |tid| and |barrier|, but they could
     // be used to execute a reducing max over the data before the exp operation.
-    DCHECK_EQ(barrier, nullptr);
-    DCHECK_EQ(tid, 0);
-    DCHECK(scratch->size() >= size_);
-    DCHECK(size_ % 8 == 0) << "CacheAlignedVector size must be a multiple of "
-                              "8 to allow for maximum SIMD and loop unroll, "
-                              "got "
-                           << size_ % 8;
-    DCHECK(size_ > mindex >= 0);
-    DCHECK((maxdex == -1) || (0 <= mindex < maxdex < size_));
+//    DCHECK_EQ(barrier, nullptr);
+//    DCHECK_EQ(tid, 0);
+//    DCHECK(scratch->size() >= size_);
+//    DCHECK(size_ % 8 == 0) << "CacheAlignedVector size must be a multiple of "
+//                              "8 to allow for maximum SIMD and loop unroll, "
+//                              "got "
+//                           << size_ % 8;
+//    DCHECK(size_ > mindex >= 0);
+//    DCHECK((maxdex == -1) || (0 <= mindex < maxdex < size_));
     int maxindex = maxdex > 0 ? maxdex : size_;
 
     float* scratch_ptr = scratch->data();
@@ -722,10 +722,10 @@ class CacheAlignedVector {
   template <class Q = DataType>
   typename std::enable_if<std::is_same<Q, float>::value, void>::type Sigmoid() {
 #if defined __aarch64__
-    DCHECK(size_ % 8 == 0) << "CacheAlignedVector size must be a multiple of "
-                              "8 to allow for maximum SIMD and loop unroll "
-                              "got "
-                           << size_ % 8;
+//    DCHECK(size_ % 8 == 0) << "CacheAlignedVector size must be a multiple of "
+//                              "8 to allow for maximum SIMD and loop unroll "
+//                              "got "
+//                           << size_ % 8;
     constexpr int kUnrollFactor = 2;
     constexpr int kElementsPerIter = kUnrollFactor * kSIMDWidth;
     for (std::size_t i = 0; i < size_; i += kElementsPerIter) {
@@ -766,10 +766,10 @@ class CacheAlignedVector {
   template <class Q = DataType>
   typename std::enable_if<std::is_same<Q, float>::value, void>::type Tanh() {
 #if defined __aarch64__
-    DCHECK(size_ % 8 == 0) << "CacheAlignedVector size must be a multiple of "
-                              "8 to allow for maximum SIMD and loop unroll "
-                              "got "
-                           << size_ % 8;
+//    DCHECK(size_ % 8 == 0) << "CacheAlignedVector size must be a multiple of "
+//                              "8 to allow for maximum SIMD and loop unroll "
+//                              "got "
+//                           << size_ % 8;
     constexpr int kUnrollFactor = 2;
     constexpr int kElementsPerIter = kUnrollFactor * kSIMDWidth;
     for (std::size_t i = 0; i < size_; i += kElementsPerIter) {
@@ -896,7 +896,9 @@ class FatCacheAlignedVector {
   // Copies and reshapes vector from (1, size) to (|rows|, size / |rows|).
   FatCacheAlignedVector(const CacheAlignedVector<T>& vector, int rows)
       : vector_(vector), rows_(rows) {
-    CHECK_EQ(vector_.size() % rows_, 0);
+    if (vector_.size() % rows_ != 0) {
+      exit(EXIT_FAILURE);
+    }
     cols_ = vector_.size() / rows_;
   }
 
@@ -911,7 +913,9 @@ class FatCacheAlignedVector {
   // Moves and reshapes vector from (1, size) to (|rows|, size / |rows|)
   FatCacheAlignedVector(CacheAlignedVector<T>&& vector, int rows)
       : vector_(vector), rows_(rows) {
-    CHECK_EQ(vector_.size() % rows_, 0);
+    if (vector_.size() % rows_ != 0) {
+      exit(EXIT_FAILURE);
+    }
     cols_ = vector_.size() / rows_;
   }
 
@@ -949,7 +953,9 @@ class FatCacheAlignedVector {
   std::size_t bytes() const { return vector_.bytes(); }
 
   void reshape(int rows, int cols) {
-    CHECK_EQ(rows * cols, rows_ * cols_);
+    if (rows * cols != rows_ * cols_) {
+      exit(EXIT_FAILURE);
+    }
     rows_ = rows;
     cols_ = cols;
   }
@@ -1050,7 +1056,9 @@ class MutableVectorView {
   std::size_t bytes() const { return rows_ * cols_ * sizeof(T); }
 
   void reshape(int rows, int cols) {
-    CHECK_EQ(rows * cols, rows_ * cols_);
+    if (rows * cols != rows_ * cols_) {
+      exit(EXIT_FAILURE);
+    }
     rows_ = rows;
     cols_ = cols;
     col_stride_ = rows_;
