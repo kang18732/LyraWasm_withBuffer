@@ -20,6 +20,7 @@
 #include <algorithm>
 
 #include "absl/base/macros.h"
+#include <cstring>
 #include "zlib.h"  // for Z_DEFAULT_COMPRESSION
 
 namespace csrblocksparse {

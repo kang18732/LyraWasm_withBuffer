@@ -162,7 +162,7 @@ cc_library(
     srcs = ["encode_and_decode_lib.cc"],
     hdrs = ["encode_and_decode_lib.h"],
     data = [
-        "//testdata:48khz_playback.wav"
+        "//testdata:48khz_sample_000003.wav"
     ],
     deps = [
         ":lyra_encoder",
