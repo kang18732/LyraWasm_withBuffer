@@ -67,6 +67,74 @@ std::vector<std::vector<std::vector<float>>> CodeVectorsToCodebooks(
 }  // namespace
 
 std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
+    int num_features, int num_bits,
+    const WavegruBufferInterface& wavegru_buffer) {
+  std::vector<float> mean_vectors_array;
+  const std::string mean_vectors_model_name =
+      "lyra_16khz_quant_mean_vectors.gz";
+  auto status = csrblocksparse::ReadArrayFromBuffer(
+      wavegru_buffer.GetBuffer(mean_vectors_model_name),
+      wavegru_buffer.GetBufferSize(mean_vectors_model_name),
+      &mean_vectors_array);
+  if (!status.ok()) {
+    std::cerr << "Couldn't read " << mean_vectors_model_name << " from buffer."
+              << std::endl;
+    return nullptr;
+  }
+
+  if (num_bits > kMaxNumQuantizedBits) {
+    std::cerr << "Specified number of bits " << num_bits
+              << "exceeds the compile-time maximum " << kMaxNumQuantizedBits;
+    return nullptr;
+  }
+
+  std::vector<float> flat_transformation_matrix_array;
+  const std::string transmat_model_name = "lyra_16khz_quant_transmat.gz";
+  status = csrblocksparse::ReadArrayFromBuffer(
+      wavegru_buffer.GetBuffer(transmat_model_name),
+      wavegru_buffer.GetBufferSize(transmat_model_name),
+      &flat_transformation_matrix_array);
+  if (!status.ok()) {
+    std::cerr << "Couldn't read transmat.gz from buffer." << std::endl;
+    return nullptr;
+  }
+
+  std::vector<float> flattened_code_vectors;
+  const std::string code_vectors_model_name =
+      "lyra_16khz_quant_code_vectors.gz";
+  status = csrblocksparse::ReadArrayFromBuffer(
+      wavegru_buffer.GetBuffer(code_vectors_model_name),
+      wavegru_buffer.GetBufferSize(code_vectors_model_name),
+      &flattened_code_vectors);
+  if (!status.ok()) {
+    std::cerr << "Couldn't read code_vectors.gz from buffer." << std::endl;
+    return nullptr;
+  }
+
+  std::vector<int16_t> codebook_dimensions;
+  const std::string codebook_dimensions_model_name =
+      "lyra_16khz_quant_codebook_dimensions.gz";
+  status = csrblocksparse::ReadArrayFromBuffer(
+      wavegru_buffer.GetBuffer(codebook_dimensions_model_name),
+      wavegru_buffer.GetBufferSize(codebook_dimensions_model_name),
+      &codebook_dimensions);
+  if (!status.ok()) {
+    std::cerr << "Couldn't read codebook_dimensions.gz from buffer."
+              << std::endl;
+    return nullptr;
+  }
+
+  const Eigen::Map<Eigen::RowVectorXf> mean_vector(mean_vectors_array.data(),
+                                                   num_features);
+  const Eigen::Map<
+      Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+      transformation_matrix(flat_transformation_matrix_array.data(),
+                            num_features, num_features);
+  return Create(num_features, num_bits, mean_vector, transformation_matrix,
+                flattened_code_vectors, codebook_dimensions);
+}
+
+std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
     int num_features, int num_bits, const ghc::filesystem::path& model_path) {
   const std::string kPrefix = "lyra_16khz_quant_";
 
@@ -76,13 +144,13 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
       kPrefix + "mean_vectors.gz", &mean_vector_array, model_path.string());
   if (!status.ok()) {
     std::cerr << "Couldn't read " << model_path / (kPrefix + "mean_vectors.gz")
-               << ": " << status.message();
+              << ": " << status.message();
     return nullptr;
   }
 
   if (num_bits > kMaxNumQuantizedBits) {
     std::cerr << "Specified number of bits " << num_bits
-               << "exceeds the compile-time maximum " << kMaxNumQuantizedBits;
+              << "exceeds the compile-time maximum " << kMaxNumQuantizedBits;
     return nullptr;
   }
 
@@ -92,7 +160,7 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
                                              model_path.string());
   if (!status.ok()) {
     std::cerr << "Couldn't read " << model_path / (kPrefix + "transmat.gz")
-               << ": " << status.message();
+              << ": " << status.message();
     return nullptr;
   }
 
@@ -102,7 +170,7 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
                                              model_path.string());
   if (!status.ok()) {
     std::cerr << "Couldn't read " << model_path / (kPrefix + "code_vectors.gz")
-               << ": " << status.message();
+              << ": " << status.message();
     return nullptr;
   }
 
@@ -112,8 +180,8 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
                                              model_path.string());
   if (!status.ok()) {
     std::cerr << "Couldn't read "
-               << model_path / (kPrefix + "codebook_dimensions.gz") << ": "
-               << status.message();
+              << model_path / (kPrefix + "codebook_dimensions.gz") << ": "
+              << status.message();
     return nullptr;
   }
 
@@ -134,22 +202,22 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
     const std::vector<int16_t>& codebook_dimensions) {
   if (mean_vector.size() != num_features) {
     std::cerr << "Expected mean vector to be length " << num_features
-               << " but was of size " << mean_vector.size();
+              << " but was of size " << mean_vector.size();
     return nullptr;
   }
   if (transformation_matrix.cols() == 0 ||
       transformation_matrix.cols() != transformation_matrix.rows()) {
     std::cerr << "Expected transformation matrix to be square with size "
-               << num_features << "x" << num_features << " but was "
-               << transformation_matrix.rows() << "x"
-               << transformation_matrix.cols();
+              << num_features << "x" << num_features << " but was "
+              << transformation_matrix.rows() << "x"
+              << transformation_matrix.cols();
     return nullptr;
   }
 
   if (mean_vector.size() != transformation_matrix.cols()) {
     std::cerr << "Rows of mean vector " << mean_vector.size()
-               << " do not match " << transformation_matrix.cols()
-               << " columns of transformation matrix.";
+              << " do not match " << transformation_matrix.cols()
+              << " columns of transformation matrix.";
     return nullptr;
   }
 
@@ -165,8 +233,8 @@ std::unique_ptr<VectorQuantizerImpl> VectorQuantizerImpl::Create(
   }
   if (total_dimensionality != num_features) {
     std::cerr << "Codebook must have the same dimensionality as the "
-               << "feature space (" << total_dimensionality << " vs "
-               << num_features << ").";
+              << "feature space (" << total_dimensionality << " vs "
+              << num_features << ").";
     return nullptr;
   }
 
@@ -198,7 +266,7 @@ absl::optional<std::string> VectorQuantizerImpl::Quantize(
     const std::vector<float>& features) const {
   if (features.size() != num_features_) {
     std::cerr << "There were " << features.size()
-               << " features to be quantized but expected " << num_features_;
+              << " features to be quantized but expected " << num_features_;
     return absl::nullopt;
   }
 

@@ -26,6 +26,7 @@
 #include "absl/types/optional.h"
 #include "include/ghc/filesystem.hpp"
 #include "vector_quantizer_interface.h"
+#include "wavegru_buffer/wavegru_buffer_interface.h"
 
 namespace chromemedia {
 namespace codec {
@@ -37,6 +38,10 @@ class VectorQuantizerImpl : public VectorQuantizerInterface {
   // code_vectors or if the transformation matrix is not invertible.
   static std::unique_ptr<VectorQuantizerImpl> Create(
       int num_features, int num_bits, const ghc::filesystem::path& model_path);
+
+  static std::unique_ptr<VectorQuantizerImpl> Create(
+      int num_features, int num_bits,
+      const WavegruBufferInterface& wavegru_buffer);
 
   // Returns nullptr if the dimensions of mean_vector and transformation_matrix
   // do not match num_features or if codebooks contains unexpected number of

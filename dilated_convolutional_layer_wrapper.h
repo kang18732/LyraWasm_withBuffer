@@ -25,6 +25,7 @@
 #include "absl/memory/memory.h"
 #include "layer_wrapper.h"
 #include "sparse_matmul/sparse_matmul.h"
+#include "wavegru_buffer/wavegru_buffer_interface.h"
 
 namespace chromemedia {
 namespace codec {
@@ -45,12 +46,14 @@ class DilatedConvolutionalLayerWrapper
     // TODO(b/161015017): Support more general stride and kernel size
     // combinations.
     if (params.stride != 1) {
-      fprintf(stderr, "%s Dilated convolutional layers only support stride 1.\n",
+      fprintf(stderr,
+              "%s Dilated convolutional layers only support stride 1.\n",
               layer_prompt.c_str());
       return nullptr;
     }
     if (params.length != 1) {
-      fprintf(stderr, "%s Dilated convolutional layers only support length 1.\n",
+      fprintf(stderr,
+              "%s Dilated convolutional layers only support length 1.\n",
               layer_prompt.c_str());
       return nullptr;
     }
@@ -66,9 +69,59 @@ class DilatedConvolutionalLayerWrapper
     const int output_rows = layer->rows();
 
     if (params.skip_connection && num_input_channels != output_rows) {
-      fprintf(stderr, "Skip connection can only be performed if the number of "
-                      "input channels is equal to the number of output "
-                      "channels. %d vs %d\n", params.num_input_channels, output_rows);
+      fprintf(stderr,
+              "Skip connection can only be performed if the number of "
+              "input channels is equal to the number of output "
+              "channels. %d vs %d\n",
+              params.num_input_channels, output_rows);
+      return nullptr;
+    }
+
+    return absl::WrapUnique(
+        new DilatedConvolutionalLayerWrapper<WeightType, RhsType, OutputType,
+                                             DiskWeightType>(
+            num_input_channels, output_rows, input_buffer_rows, params.dilation,
+            params.relu, params.per_column_barrier, params.skip_connection,
+            params.num_threads, std::move(layer)));
+  }
+
+  static std::unique_ptr<DilatedConvolutionalLayerWrapper<
+      WeightType, RhsType, OutputType, DiskWeightType>>
+  Create(const LayerParams& params,
+         const WavegruBufferInterface& wavegru_buffer) {
+    const std::string layer_prompt = "|" + params.prefix + "| layer: ";
+
+    // TODO(b/161015017): Support more general stride and kernel size
+    // combinations.
+    if (params.stride != 1) {
+      fprintf(stderr,
+              "%s Dilated convolutional layers only support stride 1.\n",
+              layer_prompt.c_str());
+      return nullptr;
+    }
+    if (params.length != 1) {
+      fprintf(stderr,
+              "%s Dilated convolutional layers only support length 1.\n",
+              layer_prompt.c_str());
+      return nullptr;
+    }
+
+    auto layer = Super::LoadAndCheckLayer(
+        wavegru_buffer, params.prefix, layer_prompt, params.num_filters,
+        params.kernel_size * params.num_input_channels, params.num_threads);
+    if (layer == nullptr) {
+      return nullptr;
+    }
+    const int input_buffer_rows = layer->cols();
+    const int num_input_channels = input_buffer_rows / params.kernel_size;
+    const int output_rows = layer->rows();
+
+    if (params.skip_connection && num_input_channels != output_rows) {
+      fprintf(stderr,
+              "Skip connection can only be performed if the number of "
+              "input channels is equal to the number of output "
+              "channels. %d vs %d\n",
+              params.num_input_channels, output_rows);
       return nullptr;
     }
 

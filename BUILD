@@ -34,8 +34,8 @@ exports_files(
 WASM_LINKOPTS = [
  "--bind",
  "-sFETCH",
- "-sEXPORT_ES6=1",
- "-sMODULARIZE=1",
+# "-sEXPORT_ES6=1",
+# "-sMODULARIZE=1",
  "-sEXPORT_ALL=1",
  "-s ALLOW_MEMORY_GROWTH=1",
  "-s NO_EXIT_RUNTIME=1",
@@ -47,6 +47,7 @@ cc_binary(
     linkopts = WASM_LINKOPTS,
     deps = [":encode_and_decode_lib",
     ":lyra_encoder",
+    "//wavegru_buffer:wavegru_buffer_interface",
     ":lyra_decoder",],
 )
 
@@ -290,6 +291,7 @@ cc_library(
         ":buffer_merger",
         ":causal_convolutional_conditioning",
         ":generative_model_interface",
+        "//wavegru_buffer:wavegru_buffer_interface",
         ":lyra_types",
         ":lyra_wavegru",
         "//sparse_matmul",
@@ -647,6 +649,7 @@ cc_library(
         ":generative_model_interface",
         ":log_mel_spectrogram_extractor_impl",
         ":packet",
+        "//wavegru_buffer:wavegru_buffer_interface",
         ":packet_interface",
         ":vector_quantizer_impl",
         ":vector_quantizer_interface",
@@ -723,6 +726,7 @@ cc_library(
     deps = [
         ":vector_quantizer_interface",
         "//sparse_matmul",
+        "//wavegru_buffer:wavegru_buffer_interface",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:optional",
@@ -1244,6 +1248,7 @@ cc_test(
         ":feature_extractor_interface",
         ":lyra_config",
         ":lyra_encoder",
+        ":runfiles_util",
         ":noise_estimator_interface",
         ":packet",
         ":packet_interface",
@@ -1270,6 +1275,7 @@ cc_test(
     ],
     deps = [
         ":lyra_config",
+        ":runfiles_util",
         ":vector_quantizer_impl",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",

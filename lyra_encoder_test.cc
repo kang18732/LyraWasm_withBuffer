@@ -37,6 +37,7 @@
 #include "include/ghc/filesystem.hpp"
 #include "lyra_config.h"
 #include "noise_estimator_interface.h"
+#include "runfiles_util.h"
 #include "packet.h"
 #include "packet_interface.h"
 #include "resampler_interface.h"
@@ -454,6 +455,60 @@ TEST_P(LyraEncoderTest, GoodCreationParametersReturnNotNullptr) {
   EXPECT_NE(nullptr,
             LyraEncoder::Create(sample_rate_hz_, kNumChannels, kBitrate,
                                 /*enable_dtx=*/true, valid_model_path));
+}
+
+TEST_P(LyraEncoderTest, CreationFromBuffersSucceeds) {
+  const std::string kPrefix = "lyra_16khz_quant_";
+
+  // Mean vectors buffer.
+  char mean_vectors_buffer[1000];
+  const std::string mean_vectors_model =
+      tools::GetModelRunfilesPathForTest() + (kPrefix + "mean_vectors.gz");
+  FILE* f1 = fopen(mean_vectors_model.c_str(), "rb");
+  uint32_t mean_vectors_buffer_size =
+      fread(mean_vectors_buffer, sizeof(char), 1000, f1);
+
+  // Transformation matrix buffer.
+  char transmat_buffer[100000];
+  const std::string transmat_model =
+      tools::GetModelRunfilesPathForTest() + (kPrefix + "transmat.gz");
+  FILE* f2 = fopen(transmat_model.c_str(), "rb");
+  uint32_t transmat_buffer_size =
+      fread(transmat_buffer, sizeof(char), 100000, f2);
+
+  // Codevectors buffer.
+  char code_vectors_buffer[25000];
+  const std::string code_vectors_model =
+      tools::GetModelRunfilesPathForTest() + (kPrefix + "code_vectors.gz");
+  FILE* f3 = fopen(code_vectors_model.c_str(), "rb");
+  uint32_t code_vectors_buffer_size =
+      fread(code_vectors_buffer, sizeof(char), 25000, f3);
+
+  // Codebook dimensions buffer.
+  char codebook_dimensions_buffer[100];
+  const std::string codebook_dimensions_model =
+      tools::GetModelRunfilesPathForTest() +
+      (kPrefix + "codebook_dimensions.gz");
+  FILE* f4 = fopen(codebook_dimensions_model.c_str(), "rb");
+  uint32_t codebook_dimensions_buffer_size =
+      fread(codebook_dimensions_buffer, sizeof(char), 100, f4);
+
+  std::unordered_map<std::string, std::pair<uint64_t, const char*>> models_map =
+      {{"quant_mean_vectors.gz", {mean_vectors_buffer_size, mean_vectors_buffer}},
+       {"quant_transmat.gz", {transmat_buffer_size, transmat_buffer}},
+       {"quant_code_vectors.gz", {code_vectors_buffer_size, code_vectors_buffer}},
+       {"quant_codebook_dimensions.gz",
+        {codebook_dimensions_buffer_size, codebook_dimensions_buffer}}};
+
+  EXPECT_NE(nullptr,
+            LyraEncoder::Create(
+                sample_rate_hz_, kNumChannels, kBitrate,
+                /*enable_dtx=*/false, SimpleWavegruBuffer(models_map)));
+
+  EXPECT_NE(nullptr,
+            LyraEncoder::Create(
+                sample_rate_hz_, kNumChannels, kBitrate,
+                /*enable_dtx=*/true, SimpleWavegruBuffer(models_map)));
 }
 
 TEST_P(LyraEncoderTest, BadCreationParametersReturnNullptr) {

@@ -65,6 +65,9 @@ absl::Status AreParamsSupported(int sample_rate_hz, int num_channels,
                                 int bitrate,
                                 const ghc::filesystem::path& model_path);
 
+absl::Status AreParamsSupported(int sample_rate_hz, int num_channels,
+                                int bitrate);
+
 // Returns a string of form "|kVersionMajor|.|kVersionMinor|.|kVersionMicro|".
 const std::string& GetVersionString();
 

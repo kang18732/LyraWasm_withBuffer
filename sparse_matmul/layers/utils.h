@@ -45,6 +45,7 @@
 #include "sparse_matmul/numerics/type_utils.h"
 #include "sparse_matmul/vector/cache_aligned_vector.h"
 #include "sparse_matmul/zlib_wrapper/zlibwrapper.h"
+#include "wavegru_buffer/wavegru_buffer_interface.h"
 
 namespace csrblocksparse {
 
@@ -89,6 +90,22 @@ ReadArrayFromFile(const std::string& file_name, std::vector<T>* array,
   int64_t length = 0;
   const absl::Status status =
       detail::ReadArrayIfstream(file_name, path, array, &length);
+  if (!status.ok()) {
+    return status;
+  }
+  unzip(length, array);
+
+  return absl::OkStatus();
+}
+
+template <typename T, typename DiskType = T, typename ElemType = T>
+typename std::enable_if<!csrblocksparse::IsFixed16Type<DiskType>::value,
+                        absl::Status>::type
+ReadArrayFromBuffer(const char* buffer, uint64_t buffer_size,
+                    std::vector<T>* array) {
+  int64_t length = 0;
+  const absl::Status status =
+      detail::ReadArrayIfstream(buffer, buffer_size, array, &length);
   if (!status.ok()) {
     return status;
   }
@@ -220,6 +237,76 @@ absl::Status LoadGenericLayer(
 
   return absl::OkStatus();
 }
+
+template <typename WeightType, typename RhsType,
+          typename DiskWeightType = float>
+absl::Status LoadGenericLayer(
+    const std::string& prefix, bool zipped,
+    const chromemedia::codec::WavegruBufferInterface& wavegru_buffer, float default_bias,
+    SparseLinearLayer<WeightType, RhsType>* sparse_linear_layer) {
+  std::string fixed_prefix =
+      csrblocksparse::IsFixed16Type<DiskWeightType>::value ? "fixed16_" : "";
+  std::string extension = zipped ? ".gz" : "";
+  std::string weight_name =
+      absl::StrCat(prefix, fixed_prefix, "weights.raw", extension);
+  std::string mask_name = absl::StrCat(prefix, "mask.raw", extension);
+  std::string bias_name = absl::StrCat(prefix, "bias.raw", extension);
+
+  std::vector<float> weight_vector;
+  std::vector<float> mask_vector;
+  std::vector<float> bias_vector;
+
+  const auto status = ReadArrayFromBuffer<float, DiskWeightType, WeightType>(
+      wavegru_buffer.GetBuffer(weight_name),
+      wavegru_buffer.GetBufferSize(weight_name), &weight_vector);
+  SPARSE_MATMUL_RETURN_IF_ERROR(status);
+  SPARSE_MATMUL_RETURN_IF_ERROR(ReadArrayFromBuffer(
+      wavegru_buffer.GetBuffer(mask_name),
+      wavegru_buffer.GetBufferSize(mask_name), &mask_vector));
+  SPARSE_MATMUL_RETURN_IF_ERROR(ReadArrayFromBuffer(
+      wavegru_buffer.GetBuffer(bias_name),
+      wavegru_buffer.GetBufferSize(bias_name), &bias_vector));
+
+  if (weight_vector.size() != mask_vector.size()) {
+    std::cerr << "Weight and mask must be"
+              << " the same size, weights: " << weight_vector.size()
+              << " mask: " << mask_vector.size() << std::endl;
+    exit(EXIT_FAILURE);
+  }
+
+  if (weight_vector.size() % bias_vector.size() != 0) {
+    std::cerr << "Weights size must "
+                 "be a multiple of the bias size. Weights: "
+              << weight_vector.size()
+              << " "
+                 "bias: "
+              << bias_vector.size()
+              << " remainder: " << weight_vector.size() % bias_vector.size();
+    exit(EXIT_FAILURE);
+  }
+
+  int rows = bias_vector.size();
+  int cols = weight_vector.size() / rows;
+
+  MaskedSparseMatrix<float> weights_masked(rows, cols, mask_vector.data(),
+                                           weight_vector.data());
+
+  weights_masked.template CastWeights<WeightType>();
+  using csrmatrix = CsrBlockSparseMatrix<WeightType, RhsType>;
+
+  csrmatrix weights(weights_masked);
+  // If the weights were not a multiple of the block size in rows, we need to
+  // expand the bias vector to match using the provided default_bias value.
+  bias_vector.resize(weights.rows(), default_bias);
+  using BiasType = typename TypeOfProduct<WeightType, RhsType>::type;
+  CacheAlignedVector<BiasType> bias(bias_vector);
+
+  *sparse_linear_layer = std::move(SparseLinearLayer<WeightType, RhsType>(
+      std::move(weights), std::move(bias)));
+
+  return absl::OkStatus();
+}
+
 template <typename WeightType, typename RhsType,
           typename DiskWeightType = float>
 absl::Status LoadSparseLayer(
@@ -229,6 +316,17 @@ absl::Status LoadSparseLayer(
   return LoadGenericLayer<WeightType, RhsType, DiskWeightType>(
       prefix, zipped, path, 0.0f, sparse_linear_layer);
 }
+
+template <typename WeightType, typename RhsType,
+          typename DiskWeightType = float>
+absl::Status LoadSparseLayerFromBuffer(
+    const std::string& prefix, bool zipped,
+    SparseLinearLayer<WeightType, RhsType>* sparse_linear_layer,
+    const chromemedia::codec::WavegruBufferInterface& wavegru_buffer) {
+  return LoadGenericLayer<WeightType, RhsType, DiskWeightType>(
+      prefix, zipped, wavegru_buffer, 0.0f, sparse_linear_layer);
+}
+
 template <typename WeightType, typename RhsType,
           typename DiskWeightType = float>
 absl::Status LoadLogitLayer(
@@ -236,6 +334,17 @@ absl::Status LoadLogitLayer(
     SparseLinearLayer<WeightType, RhsType>* sparse_linear_layer) {
   return LoadGenericLayer<WeightType, RhsType, DiskWeightType>(
       prefix, zipped, path, std::numeric_limits<float>::lowest(),
+      sparse_linear_layer);
+}
+
+template <typename WeightType, typename RhsType,
+          typename DiskWeightType = float>
+absl::Status LoadLogitLayerFromBuffer(
+    const std::string& prefix, bool zipped,
+    const chromemedia::codec::WavegruBufferInterface& wavegru_buffer,
+    SparseLinearLayer<WeightType, RhsType>* sparse_linear_layer) {
+  return LoadGenericLayer<WeightType, RhsType, DiskWeightType>(
+      prefix, zipped, wavegru_buffer, std::numeric_limits<float>::lowest(),
       sparse_linear_layer);
 }
 
@@ -318,18 +427,18 @@ absl::Status LoadFatVector(const std::string& file_name, int rows, int cols,
                            const std::string& path = "/data/local/tmp/") {
   // neither can be zero
   if (rows == 0 || cols == 0) {
-        std::cerr << "rows and cols cannot be zero" << std::endl;
-        exit(EXIT_FAILURE);
+    std::cerr << "rows and cols cannot be zero" << std::endl;
+    exit(EXIT_FAILURE);
   }
   // only one can be -1
   if (rows == -1 && cols == -1) {
-            std::cerr << "rows and cols cannot be -1" << std::endl;
-                exit(EXIT_FAILURE);
+    std::cerr << "rows and cols cannot be -1" << std::endl;
+    exit(EXIT_FAILURE);
   }
   // otherwise must be positive
   if (rows < -1 || cols < -1) {
-            std::cerr << "rows and cols must be positive" << std::endl;
-                exit(EXIT_FAILURE);
+    std::cerr << "rows and cols must be positive" << std::endl;
+    exit(EXIT_FAILURE);
   }
 
   CacheAlignedVector<T> values;

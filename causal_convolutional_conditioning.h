@@ -122,10 +122,50 @@ class CausalConvolutionalConditioning {
       exit(EXIT_FAILURE);
     }
     if (num_frames_per_packet_ <= 0) {
-     std::cerr << "Number of frames per packet must be > 0." << std::endl;
-     exit(EXIT_FAILURE);
+      std::cerr << "Number of frames per packet must be > 0." << std::endl;
+      exit(EXIT_FAILURE);
     }
     CreateLayers();
+    PrepareOutput();
+    WarmUp(silence_value);
+  }
+
+  CausalConvolutionalConditioning(int feature_depth, int num_cond_hiddens,
+                                  int num_hiddens, int num_samples_per_hop,
+                                  int num_frames_per_packet, int num_threads,
+                                  float silence_value,
+                                  const WavegruBufferInterface& wavegru_buffer,
+                                  const std::string& prefix)
+      : feature_depth_(feature_depth),
+        num_hiddens_(num_hiddens),
+        num_cond_hiddens_(num_cond_hiddens),
+        num_samples_per_hop_(num_samples_per_hop),
+        num_frames_per_packet_(num_frames_per_packet),
+        num_threads_(num_threads),
+        path_("unused-path"),
+        prefix_(prefix),
+        num_precomputed_frames_(0) {
+
+    // Crash ok.
+    if (num_threads_ > num_cond_hiddens) {
+      std::cerr << "Number of threads must be <= the number of hidden layers "
+                   "but were "
+                << num_threads_ << " and " << num_cond_hiddens_ << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    if (num_threads_ <= 0) {
+      std::cerr << "Number of threads must be > 0." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    if (num_samples_per_hop_ <= 0) {
+      std::cerr << "Number of samples per hop must be > 0." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    if (num_frames_per_packet_ <= 0) {
+      std::cerr << "Number of frames per packet must be > 0." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    CreateLayers(wavegru_buffer);
     PrepareOutput();
     WarmUp(silence_value);
   }
@@ -148,14 +188,14 @@ class CausalConvolutionalConditioning {
   void Precompute(const csrblocksparse::FatCacheAlignedVector<float>& input,
                   int num_threads) {
     if (input.cols() != kCondInputNumTimesteps) {
-        std::cerr << "Input must have " << kCondInputNumTimesteps << " columns."
-                    << std::endl;
-        exit(EXIT_FAILURE);
+      std::cerr << "Input must have " << kCondInputNumTimesteps << " columns."
+                << std::endl;
+      exit(EXIT_FAILURE);
     }
     if (feature_depth_ != input.rows()) {
-        std::cerr << "Input must have " << feature_depth_ << " rows."
-                    << std::endl;
-        exit(EXIT_FAILURE);
+      std::cerr << "Input must have " << feature_depth_ << " rows."
+                << std::endl;
+      exit(EXIT_FAILURE);
     }
     InsertNewInput(input);
 
@@ -308,7 +348,7 @@ class CausalConvolutionalConditioning {
     const LayerParams conv1d_params = Conv1DParams(
         feature_depth_, num_cond_hiddens_, num_threads_, path_, prefix_);
     conv1d_layer_ = Conv1DLayerType::Create(conv1d_params);
-    if (conv1d_layer_ ==  nullptr) {
+    if (conv1d_layer_ == nullptr) {
       std::cerr << "Failed to create conv1d layer." << std::endl;
       exit(EXIT_FAILURE);
     }
@@ -317,64 +357,147 @@ class CausalConvolutionalConditioning {
         DilatedParams(num_cond_hiddens_, 0, num_threads_, path_, prefix_);
     dilated_conv_layer_0_ = CondStack0LayerType::Create(dilated_params_0);
     if (dilated_conv_layer_0_ == nullptr) {
-        std::cerr << "Failed to create dilated conv layer 0." << std::endl;
-        exit(EXIT_FAILURE);
+      std::cerr << "Failed to create dilated conv layer 0." << std::endl;
+      exit(EXIT_FAILURE);
     }
 
     const LayerParams dilated_params_1 =
         DilatedParams(num_cond_hiddens_, 1, num_threads_, path_, prefix_);
     dilated_conv_layer_1_ = CondStack1LayerType::Create(dilated_params_1);
     if (dilated_conv_layer_1_ == nullptr) {
-        std::cerr << "Failed to create dilated conv layer 1." << std::endl;
-        exit(EXIT_FAILURE);
+      std::cerr << "Failed to create dilated conv layer 1." << std::endl;
+      exit(EXIT_FAILURE);
     }
 
     const LayerParams dilated_params_2 =
         DilatedParams(num_cond_hiddens_, 2, num_threads_, path_, prefix_);
     dilated_conv_layer_2_ = CondStack2LayerType::Create(dilated_params_2);
     if (dilated_conv_layer_2_ == nullptr) {
-        std::cerr << "Failed to create dilated conv layer 2." << std::endl;
-        exit(EXIT_FAILURE);
+      std::cerr << "Failed to create dilated conv layer 2." << std::endl;
+      exit(EXIT_FAILURE);
     }
 
     const LayerParams transpose_params_0 =
         TransposeParams(num_cond_hiddens_, 0, num_threads_, path_, prefix_);
     transpose_conv_layer_0_ = Transpose0LayerType::Create(transpose_params_0);
     if (transpose_conv_layer_0_ == nullptr) {
-        std::cerr << "Failed to create transpose conv layer 0." << std::endl;
-        exit(EXIT_FAILURE);
+      std::cerr << "Failed to create transpose conv layer 0." << std::endl;
+      exit(EXIT_FAILURE);
     }
 
     const LayerParams transpose_params_1 =
         TransposeParams(num_cond_hiddens_, 1, num_threads_, path_, prefix_);
     transpose_conv_layer_1_ = Transpose1LayerType::Create(transpose_params_1);
     if (transpose_conv_layer_1_ == nullptr) {
-        std::cerr << "Failed to create transpose conv layer 1." << std::endl;
-        exit(EXIT_FAILURE);
+      std::cerr << "Failed to create transpose conv layer 1." << std::endl;
+      exit(EXIT_FAILURE);
     }
 
     const LayerParams transpose_params_2 =
         TransposeParams(num_cond_hiddens_, 2, num_threads_, path_, prefix_);
     transpose_conv_layer_2_ = Transpose2LayerType::Create(transpose_params_2);
     if (transpose_conv_layer_2_ == nullptr) {
-        std::cerr << "Failed to create transpose conv layer 2." << std::endl;
-        exit(EXIT_FAILURE);
+      std::cerr << "Failed to create transpose conv layer 2." << std::endl;
+      exit(EXIT_FAILURE);
     }
 
     const LayerParams conv_cond_params = ConvCondParams(
         num_cond_hiddens_, num_hiddens_, num_threads_, path_, prefix_);
     conv_cond_layer_ = ConvCondLayerType::Create(conv_cond_params);
     if (conv_cond_layer_ == nullptr) {
-        std::cerr << "Failed to create conv_cond layer." << std::endl;
-        exit(EXIT_FAILURE);
+      std::cerr << "Failed to create conv_cond layer." << std::endl;
+      exit(EXIT_FAILURE);
     }
 
     const LayerParams conv_to_gates_params =
         ConvToGatesParams(num_hiddens_, num_threads_, path_, prefix_);
     conv_to_gates_layer_ = ConvToGatesLayerType::Create(conv_to_gates_params);
     if (conv_to_gates_layer_ == nullptr) {
-        std::cerr << "Failed to create conv_to_gates layer." << std::endl;
-        exit(EXIT_FAILURE);
+      std::cerr << "Failed to create conv_to_gates layer." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  void CreateLayers(const WavegruBufferInterface& wavegru_buffer) {
+    // TODO(b/161822329): Put these layers in a container.
+    const LayerParams conv1d_params = Conv1DParams(
+        feature_depth_, num_cond_hiddens_, num_threads_, path_, prefix_);
+    conv1d_layer_ = Conv1DLayerType::Create(conv1d_params, wavegru_buffer);
+    if (conv1d_layer_ == nullptr) {
+      std::cerr << "Failed to create conv1d layer." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    const LayerParams dilated_params_0 =
+        DilatedParams(num_cond_hiddens_, 0, num_threads_, path_, prefix_);
+    dilated_conv_layer_0_ =
+        CondStack0LayerType::Create(dilated_params_0, wavegru_buffer);
+    if (dilated_conv_layer_0_ == nullptr) {
+      std::cerr << "Failed to create dilated conv layer 0." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    const LayerParams dilated_params_1 =
+        DilatedParams(num_cond_hiddens_, 1, num_threads_, path_, prefix_);
+    dilated_conv_layer_1_ =
+        CondStack1LayerType::Create(dilated_params_1, wavegru_buffer);
+    if (dilated_conv_layer_1_ == nullptr) {
+      std::cerr << "Failed to create dilated conv layer 1." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    const LayerParams dilated_params_2 =
+        DilatedParams(num_cond_hiddens_, 2, num_threads_, path_, prefix_);
+    dilated_conv_layer_2_ =
+        CondStack2LayerType::Create(dilated_params_2, wavegru_buffer);
+    if (dilated_conv_layer_2_ == nullptr) {
+      std::cerr << "Failed to create dilated conv layer 2." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    const LayerParams transpose_params_0 =
+        TransposeParams(num_cond_hiddens_, 0, num_threads_, path_, prefix_);
+    transpose_conv_layer_0_ =
+        Transpose0LayerType::Create(transpose_params_0, wavegru_buffer);
+    if (transpose_conv_layer_0_ == nullptr) {
+      std::cerr << "Failed to create transpose conv layer 0." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    const LayerParams transpose_params_1 =
+        TransposeParams(num_cond_hiddens_, 1, num_threads_, path_, prefix_);
+    transpose_conv_layer_1_ =
+        Transpose1LayerType::Create(transpose_params_1, wavegru_buffer);
+    if (transpose_conv_layer_1_ == nullptr) {
+      std::cerr << "Failed to create transpose conv layer 1." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    const LayerParams transpose_params_2 =
+        TransposeParams(num_cond_hiddens_, 2, num_threads_, path_, prefix_);
+    transpose_conv_layer_2_ =
+        Transpose2LayerType::Create(transpose_params_2, wavegru_buffer);
+    if (transpose_conv_layer_2_ == nullptr) {
+      std::cerr << "Failed to create transpose conv layer 2." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    const LayerParams conv_cond_params = ConvCondParams(
+        num_cond_hiddens_, num_hiddens_, num_threads_, path_, prefix_);
+    conv_cond_layer_ =
+        ConvCondLayerType::Create(conv_cond_params, wavegru_buffer);
+    if (conv_cond_layer_ == nullptr) {
+      std::cerr << "Failed to create conv_cond layer." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    const LayerParams conv_to_gates_params =
+        ConvToGatesParams(num_hiddens_, num_threads_, path_, prefix_);
+    conv_to_gates_layer_ =
+        ConvToGatesLayerType::Create(conv_to_gates_params, wavegru_buffer);
+    if (conv_to_gates_layer_ == nullptr) {
+      std::cerr << "Failed to create conv_to_gates layer." << std::endl;
+      exit(EXIT_FAILURE);
     }
   }
 

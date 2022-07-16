@@ -46,6 +46,82 @@ namespace codec {
 
 std::unique_ptr<LyraEncoder> LyraEncoder::Create(
     int sample_rate_hz, int num_channels, int bitrate, bool enable_dtx,
+    const WavegruBufferInterface& wavegru_buffer) {
+  absl::Status are_params_supported =
+      AreParamsSupported(sample_rate_hz, num_channels, bitrate);
+  if (!are_params_supported.ok()) {
+    std::cerr << "ERROR: " << are_params_supported << std::endl;
+    return nullptr;
+  }
+
+  std::unique_ptr<Resampler> resampler = nullptr;
+  if (kInternalSampleRateHz != sample_rate_hz) {
+    resampler = Resampler::Create(sample_rate_hz, kInternalSampleRateHz);
+    if (resampler == nullptr) {
+      fprintf(stderr, "Error: Failed to create resampler.\n");
+      return nullptr;
+    }
+  }
+
+  const int internal_samples_per_hop =
+      GetNumSamplesPerHop(kInternalSampleRateHz);
+  auto feature_extractor = CreateFeatureExtractor(
+      kInternalSampleRateHz, kNumFeatures, internal_samples_per_hop,
+      GetNumSamplesPerFrame(kInternalSampleRateHz));
+  if (feature_extractor == nullptr) {
+    fprintf(stderr, "Error: Failed to create feature extractor.\n");
+    return nullptr;
+  }
+
+  auto vector_quantizer = CreateQuantizer(
+      kNumFramesPerPacket * kNumExpectedOutputFeatures, kNumQuantizationBits,
+      wavegru_buffer);
+
+  if (vector_quantizer == nullptr) {
+    fprintf(stderr, "Error: Failed to create vector quantizer.\n");
+    return nullptr;
+  }
+
+  auto packet = CreatePacket();
+
+  std::unique_ptr<NoiseEstimatorInterface> noise_estimator =
+      NoiseEstimator::Create(
+          kNumFeatures,
+          static_cast<float>(internal_samples_per_hop) / kInternalSampleRateHz);
+  if (noise_estimator == nullptr) {
+    fprintf(stderr, "Error: Failed to create noise estimator.\n");
+    return nullptr;
+  }
+
+  // Default to the internal frame hop size.
+  auto denoiser = CreateDenoiser("");
+  if (!denoiser.ok()) {
+    fprintf(stderr, "Error: Failed to create denoiser.\n");
+    return nullptr;
+  }
+  if (denoiser.value() != nullptr) {
+    const int denoiser_samples_per_hop =
+        denoiser.value()->SamplesPerHop() == 0
+            ? internal_samples_per_hop
+            : denoiser.value()->SamplesPerHop();
+    if (internal_samples_per_hop % denoiser_samples_per_hop != 0) {
+      fprintf(stderr,
+              "Error: Denoiser hop size must divide the "
+              "encoder hop size.\n");
+      return nullptr;
+    }
+  }
+
+  // WrapUnique is used because of private c'tor.
+  return absl::WrapUnique(new LyraEncoder(
+      std::move(resampler), std::move(feature_extractor),
+      std::move(noise_estimator), std::move(vector_quantizer),
+      std::move(denoiser.value()), std::move(packet), sample_rate_hz,
+      num_channels, bitrate, kNumFramesPerPacket, enable_dtx));
+}
+
+std::unique_ptr<LyraEncoder> LyraEncoder::Create(
+    int sample_rate_hz, int num_channels, int bitrate, bool enable_dtx,
     const ghc::filesystem::path& model_path) {
   absl::Status are_params_supported =
       AreParamsSupported(sample_rate_hz, num_channels, bitrate, model_path);
@@ -104,8 +180,9 @@ std::unique_ptr<LyraEncoder> LyraEncoder::Create(
             ? internal_samples_per_hop
             : denoiser.value()->SamplesPerHop();
     if (internal_samples_per_hop % denoiser_samples_per_hop != 0) {
-      fprintf(stderr, "Error: Denoiser hop size must divide the "
-                      "encoder hop size.\n");
+      fprintf(stderr,
+              "Error: Denoiser hop size must divide the "
+              "encoder hop size.\n");
       return nullptr;
     }
   }
@@ -183,9 +260,10 @@ absl::optional<std::vector<uint8_t>> LyraEncoder::EncodeInternal(
       GetNumSamplesPerHop(kInternalSampleRateHz);
   if (audio_for_encoding.size() !=
       num_frames_per_packet_ * internal_samples_per_hop) {
-    fprintf(stderr, "The number of audio samples (%zu) does not match the "
-                    "number of frames per packet (%d) times the internal "
-                    "hop size (%d).\n",
+    fprintf(stderr,
+            "The number of audio samples (%zu) does not match the "
+            "number of frames per packet (%d) times the internal "
+            "hop size (%d).\n",
             audio_for_encoding.size(), num_frames_per_packet_,
             internal_samples_per_hop);
     return absl::nullopt;

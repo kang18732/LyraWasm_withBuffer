@@ -31,6 +31,7 @@
 #include "lyra_types.h"
 #include "lyra_wavegru.h"
 #include "sparse_matmul/sparse_matmul.h"
+#include "wavegru_buffer/wavegru_buffer_interface.h"
 
 namespace chromemedia {
 namespace codec {
@@ -42,6 +43,10 @@ class WavegruModelImpl : public GenerativeModelInterface {
   static std::unique_ptr<WavegruModelImpl> Create(
       int num_samples_per_hop, int num_features, int num_frames_per_packet,
       float silence_value, const ghc::filesystem::path& model_path);
+
+  static std::unique_ptr<WavegruModelImpl> Create(
+      int num_samples_per_hop, int num_features, int num_frames_per_packet,
+      float silence_value, const WavegruBufferInterface& wavegru_buffer);
 
   ~WavegruModelImpl() override;
 
@@ -69,6 +74,15 @@ class WavegruModelImpl : public GenerativeModelInterface {
                    float silence_value,
                    std::unique_ptr<LyraWavegru<ComputeType>> wavegru,
                    std::unique_ptr<BufferMerger> buffer_merger);
+
+  WavegruModelImpl(const WavegruBufferInterface& wavegru_buffer,
+                   const std::string& model_prefix, int num_threads,
+                   int num_features, int num_cond_hiddens,
+                   int num_samples_per_hop, int num_frames_per_packet,
+                   float silence_value,
+                   std::unique_ptr<LyraWavegru<ComputeType>> wavegru,
+                   std::unique_ptr<BufferMerger> buffer_merger);
+
 
   const int num_threads_;
   const int num_samples_per_hop_;

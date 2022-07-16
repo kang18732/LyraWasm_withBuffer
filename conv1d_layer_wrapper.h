@@ -45,22 +45,72 @@ class Conv1DLayerWrapper
     // TODO(b/161015017): Support more general stride and kernel size
     // combinations.
     if (params.skip_connection) {
-      fprintf(stderr, "%s Conv1D layer with skip connection is not supported.\n",
+      fprintf(stderr,
+              "%s Conv1D layer with skip connection is not supported.\n",
               layer_prompt.c_str());
       if (params.stride == 1) {
-        fprintf(stderr, "%s Use DilatedConvolutionalLayerWrapper with |dilation| = 1 and |stride| = 1 to allow skip connections.\n",
+        fprintf(stderr,
+                "%s Use DilatedConvolutionalLayerWrapper with |dilation| = 1 "
+                "and |stride| = 1 to allow skip connections.\n",
                 layer_prompt.c_str());
       }
       return nullptr;
     }
     if (params.dilation != 1) {
-      fprintf(stderr, "%s Use DilatedConvolutionalLayerWrapper instead by setting |params.type| to |kDilated|.\n",
+      fprintf(stderr,
+              "%s Use DilatedConvolutionalLayerWrapper instead by setting "
+              "|params.type| to |kDilated|.\n",
               layer_prompt.c_str());
       return nullptr;
     }
 
     auto layer = Super::LoadAndCheckLayer(
         params.from, params.prefix, layer_prompt, params.num_filters,
+        params.kernel_size * params.num_input_channels, params.num_threads);
+    if (layer == nullptr) {
+      return nullptr;
+    }
+    const int input_buffer_rows = layer->cols();
+    const int num_input_channels = input_buffer_rows / params.kernel_size;
+    const int output_rows = layer->rows();
+
+    return absl::WrapUnique(
+        new Conv1DLayerWrapper<WeightType, RhsType, OutputType, DiskWeightType>(
+            num_input_channels, output_rows, params.length, input_buffer_rows,
+            params.stride, params.relu, params.per_column_barrier,
+            std::move(layer)));
+  }
+
+  static std::unique_ptr<
+      Conv1DLayerWrapper<WeightType, RhsType, OutputType, DiskWeightType>>
+  Create(const LayerParams& params,
+         const WavegruBufferInterface& wavegru_buffer) {
+    const std::string layer_prompt = "|" + params.prefix + "| layer: ";
+
+    // TODO(b/161015017): Support more general stride and kernel size
+    // combinations.
+    if (params.skip_connection) {
+      fprintf(stderr,
+              "%s Conv1D layer with skip connection is not supported.\n",
+              layer_prompt.c_str());
+      if (params.stride == 1) {
+        fprintf(stderr,
+                "%s Use DilatedConvolutionalLayerWrapper with |dilation| = 1 "
+                "and |stride| = 1 to allow skip connections.\n",
+                layer_prompt.c_str());
+      }
+      return nullptr;
+    }
+    if (params.dilation != 1) {
+      fprintf(stderr,
+              "%s Use DilatedConvolutionalLayerWrapper instead by setting "
+              "|params.type| to |kDilated|.\n",
+              layer_prompt.c_str());
+      return nullptr;
+    }
+
+    auto layer = Super::LoadAndCheckLayer(
+        wavegru_buffer, params.prefix, layer_prompt, params.num_filters,
         params.kernel_size * params.num_input_channels, params.num_threads);
     if (layer == nullptr) {
       return nullptr;

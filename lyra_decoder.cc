@@ -44,6 +44,73 @@ namespace codec {
 
 std::unique_ptr<LyraDecoder> LyraDecoder::Create(
     int sample_rate_hz, int num_channels, int bitrate,
+    const WavegruBufferInterface& wavegru_buffer) {
+  absl::Status are_params_supported =
+      AreParamsSupported(sample_rate_hz, num_channels, bitrate);
+  if (!are_params_supported.ok()) {
+    std::cerr << are_params_supported << std::endl;
+    return nullptr;
+  }
+
+  // The model is always set up for |kInternalSampleRateHz|.
+  auto model = CreateGenerativeModel(GetNumSamplesPerHop(kInternalSampleRateHz),
+                                     kNumExpectedOutputFeatures,
+                                     kNumFramesPerPacket, wavegru_buffer);
+  if (model == nullptr) {
+    std::cerr << "New model could not be instantiated." << std::endl;
+    return nullptr;
+  }
+
+  // The comfort noise generator is always set up for |kInternalSampleRateHz|.
+  auto comfort_noise_generator = ComfortNoiseGenerator::Create(
+      kInternalSampleRateHz, kNumExpectedOutputFeatures,
+      GetNumSamplesPerFrame(kInternalSampleRateHz),
+      GetNumSamplesPerHop(kInternalSampleRateHz));
+  if (comfort_noise_generator == nullptr) {
+    std::cerr << "Could not create Comfort Noise Generator." << std::endl;
+    return nullptr;
+  }
+
+  // Vector Quantizer is always set up for |kInternalSampleRateHz|.
+  auto vector_quantizer =
+      CreateQuantizer(kNumFramesPerPacket * kNumExpectedOutputFeatures,
+                      kNumQuantizationBits, wavegru_buffer);
+  if (vector_quantizer == nullptr) {
+    std::cerr << "Could not create Vector Quantizer.";
+    return nullptr;
+  }
+
+  auto packet = CreatePacket();
+
+  // The packet loss handler is always set up for |kInternalSampleRateHz|.
+  auto packet_loss_handler = PacketLossHandler::Create(
+      kInternalSampleRateHz, kNumExpectedOutputFeatures,
+      static_cast<float>(GetNumSamplesPerHop(kInternalSampleRateHz)) /
+          kInternalSampleRateHz);
+  if (packet_loss_handler == nullptr) {
+    std::cerr << "Could not create Packet Loss Handler.";
+    return nullptr;
+  }
+
+  // The resampler always resamples from |kInternalSampleRateHz| to the
+  // requested |sample_rate_hz|.
+  auto resampler = Resampler::Create(kInternalSampleRateHz, sample_rate_hz);
+  if (resampler == nullptr) {
+    std::cerr << "Could not create Resampler.";
+    return nullptr;
+  }
+
+  // WrapUnique is used because of private c'tor.
+  return absl::WrapUnique(new LyraDecoder(
+      std::move(model), std::move(comfort_noise_generator),
+      std::move(vector_quantizer), std::move(packet),
+      std::move(packet_loss_handler), std::move(resampler), sample_rate_hz,
+      num_channels, bitrate, kNumFramesPerPacket));
+}
+
+
+std::unique_ptr<LyraDecoder> LyraDecoder::Create(
+    int sample_rate_hz, int num_channels, int bitrate,
     const ghc::filesystem::path& model_path) {
   absl::Status are_params_supported =
       AreParamsSupported(sample_rate_hz, num_channels, bitrate, model_path);
@@ -323,7 +390,8 @@ LyraDecoder::RunComfortNoiseGeneratorWithNecessaryOverlap(
   }
   if (comfort_noise_or->size() != num_samples) {
     std::cerr << "Comfort noise generator generated audio samples with a "
-                 "different number of samples than requested." << std::endl;
+                 "different number of samples than requested."
+              << std::endl;
     exit(EXIT_FAILURE);
   }
 

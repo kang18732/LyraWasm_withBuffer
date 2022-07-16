@@ -49,6 +49,13 @@ std::unique_ptr<VectorQuantizerInterface> CreateQuantizer(
 }
 
 std::unique_ptr<VectorQuantizerInterface> CreateQuantizer(
+    int num_output_features, int num_bits,
+    const WavegruBufferInterface& wavegru_buffer) {
+  return VectorQuantizerImpl::Create(num_output_features, num_bits,
+                                     wavegru_buffer);
+}
+
+std::unique_ptr<VectorQuantizerInterface> CreateQuantizer(
     int num_features, int num_bits, const Eigen::RowVectorXf& mean_vector,
     const Eigen::MatrixXf& transformation_matrix,
     const std::vector<float>& code_vectors,
@@ -64,6 +71,14 @@ std::unique_ptr<GenerativeModelInterface> CreateGenerativeModel(
   return WavegruModelImpl::Create(
       num_samples_per_hop, num_output_features, num_frames_per_packet,
       LogMelSpectrogramExtractorImpl::GetSilenceValue(), model_path);
+}
+
+std::unique_ptr<GenerativeModelInterface> CreateGenerativeModel(
+    int num_samples_per_hop, int num_output_features, int num_frames_per_packet,
+    const WavegruBufferInterface& wavegru_buffer) {
+  return WavegruModelImpl::Create(
+      num_samples_per_hop, num_output_features, num_frames_per_packet,
+      LogMelSpectrogramExtractorImpl::GetSilenceValue(), wavegru_buffer);
 }
 
 std::unique_ptr<FeatureExtractorInterface> CreateFeatureExtractor(

@@ -32,6 +32,23 @@ namespace csrblocksparse {
 namespace detail {
 
 template <typename T>
+absl::Status ReadArrayIfstream(const char* buffer, uint64_t buffer_size,
+                               std::vector<T>* array, int64_t* length) {
+  std::stringstream string_buffer;
+  string_buffer.write(buffer, buffer_size);
+  if (string_buffer.str().empty()) {
+    return absl::UnknownError("Failed to read array from buffer");
+  }
+  std::string contents = string_buffer.str();
+  *length = contents.length();
+  int64_t elem = (*length + sizeof(T) - 1) / sizeof(T);
+  array->resize(elem);
+  std::move(contents.begin(), contents.end(),
+            reinterpret_cast<char*>(array->data()));
+  return absl::OkStatus();
+}
+
+template <typename T>
 absl::Status ReadArrayIfstream(const std::string& file_name,
                                const std::string& path, std::vector<T>* array,
                                int64_t* length) {

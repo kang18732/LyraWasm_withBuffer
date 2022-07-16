@@ -32,6 +32,7 @@
 #include "packet_loss_handler_interface.h"
 #include "resampler_interface.h"
 #include "vector_quantizer_interface.h"
+#include "wavegru_buffer/wavegru_buffer_interface.h"
 
 namespace chromemedia {
 namespace codec {
@@ -57,6 +58,10 @@ class LyraDecoder : public LyraDecoderInterface {
   static std::unique_ptr<LyraDecoder> Create(
       int sample_rate_hz, int num_channels, int bitrate,
       const ghc::filesystem::path& model_path);
+
+  static std::unique_ptr<LyraDecoder> Create(
+        int sample_rate_hz, int num_channels, int bitrate,
+      const WavegruBufferInterface& wavegru_buffer);
 
   /// Parses a packet and prepares the decoder to decode samples from the
   /// payload.

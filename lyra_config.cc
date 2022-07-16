@@ -51,6 +51,25 @@ const int kPacketSize = 15;
 const int kBitrate = kPacketSize * CHAR_BIT * kFrameRate * kNumChannels;
 
 absl::Status AreParamsSupported(int sample_rate_hz, int num_channels,
+                                int bitrate) {
+  if (!IsSampleRateSupported(sample_rate_hz)) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Sample rate %d Hz is not supported by codec.", sample_rate_hz));
+  }
+  if (num_channels != kNumChannels) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Number of channels %d is not supported by codec. It needs to be %d.",
+        num_channels, kNumChannels));
+  }
+  if (bitrate != kBitrate) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Bitrate %d bps is not supported by codec. It needs to be %d bps.",
+        bitrate, kBitrate));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status AreParamsSupported(int sample_rate_hz, int num_channels,
                                 int bitrate,
                                 const ghc::filesystem::path& model_path) {
   constexpr absl::string_view kAssets[] = {

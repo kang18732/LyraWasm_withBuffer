@@ -24,6 +24,7 @@
 #include "absl/memory/memory.h"
 #include "layer_wrapper.h"
 #include "sparse_matmul/sparse_matmul.h"
+#include "wavegru_buffer/wavegru_buffer_interface.h"
 
 namespace chromemedia {
 namespace codec {
@@ -46,24 +47,69 @@ class TransposeConvolutionalLayerWrapper
     if (params.kernel_size != params.stride) {
       std::cerr << layer_prompt
                  << "Transpose convolutional layer with |kernel_size| != "
-                 << "|stride| is not supported.";
+                 << "|stride| is not supported." << std::endl;
       return nullptr;
     }
     if (params.dilation != 1) {
       std::cerr << layer_prompt
                  << "Transpose convolutional layer with |dilation| != 1"
-                 << "is not supported.";
+                 << "is not supported." << std::endl;
       return nullptr;
     }
     if (params.skip_connection) {
       std::cerr << layer_prompt
                  << "Transpose convolutional layer does not support "
-                 << "skip connections.";
+                 << "skip connections." << std::endl;
       return nullptr;
     }
 
     auto layer =
         Super::LoadAndCheckLayer(params.from, params.prefix, layer_prompt,
+                                 params.kernel_size * params.num_filters,
+                                 params.num_input_channels, params.num_threads);
+    if (layer == nullptr) {
+      return nullptr;
+    }
+    const int input_buffer_rows = layer->cols();
+    const int num_input_channels = input_buffer_rows;
+    const int output_rows = layer->rows();
+
+    return absl::WrapUnique(
+        new TransposeConvolutionalLayerWrapper<WeightType, RhsType, OutputType,
+                                               DiskWeightType>(
+            num_input_channels, output_rows, params.length, input_buffer_rows,
+            params.dilation * params.length, params.relu,
+            params.per_column_barrier, std::move(layer)));
+  }
+
+  static std::unique_ptr<TransposeConvolutionalLayerWrapper<
+      WeightType, RhsType, OutputType, DiskWeightType>>
+  Create(const LayerParams& params, const WavegruBufferInterface& wavegru_buffer) {
+    const std::string layer_prompt = "|" + params.prefix + "| layer: ";
+
+    // TODO(b/161015017): Support more general stride and kernel size
+    // combinations.
+    if (params.kernel_size != params.stride) {
+      std::cerr << layer_prompt
+                << "Transpose convolutional layer with |kernel_size| != "
+                << "|stride| is not supported." << std::endl;
+      return nullptr;
+    }
+    if (params.dilation != 1) {
+      std::cerr << layer_prompt
+                << "Transpose convolutional layer with |dilation| != 1"
+                << "is not supported." << std::endl;
+      return nullptr;
+    }
+    if (params.skip_connection) {
+      std::cerr << layer_prompt
+                << "Transpose convolutional layer does not support "
+                << "skip connections." << std::endl;
+      return nullptr;
+    }
+
+    auto layer =
+        Super::LoadAndCheckLayer(wavegru_buffer, params.prefix, layer_prompt,
                                  params.kernel_size * params.num_filters,
                                  params.num_input_channels, params.num_threads);
     if (layer == nullptr) {

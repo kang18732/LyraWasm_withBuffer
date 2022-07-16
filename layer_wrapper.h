@@ -27,6 +27,7 @@
 #include "dsp_util.h"
 #include "layer_wrapper_interface.h"
 #include "sparse_matmul/sparse_matmul.h"
+#include "wavegru_buffer/wavegru_buffer_interface.h"
 
 namespace chromemedia {
 namespace codec {
@@ -70,6 +71,63 @@ class LayerWrapper : public LayerWrapperInterface<WeightType, RhsType,
     }
   }
 
+  static std::unique_ptr<
+      LayerWrapper<WeightType, RhsType, OutputType, DiskWeightType>>
+  Create(const LayerParams& params,
+         const WavegruBufferInterface& wavegru_buffer) {
+    if (params.type == LayerType::kTranspose) {
+      return TransposeConvolutionalLayerWrapper<
+          WeightType, RhsType, OutputType,
+          DiskWeightType>::Create(params, wavegru_buffer);
+    } else if (params.type == LayerType::kDilated) {
+      return DilatedConvolutionalLayerWrapper<
+          WeightType, RhsType, OutputType,
+          DiskWeightType>::Create(params, wavegru_buffer);
+    } else if (params.type == LayerType::kConv1D) {
+      return Conv1DLayerWrapper<WeightType, RhsType, OutputType,
+                                DiskWeightType>::Create(params, wavegru_buffer);
+    } else {
+      fprintf(stderr, "Unrecognized layer type.\n");
+      return nullptr;
+    }
+  }
+
+  static std::unique_ptr<csrblocksparse::SparseLinearLayer<WeightType, RhsType>>
+  LoadAndCheckLayer(const WavegruBufferInterface& wavegru_buffer,
+                    const std::string& prefix, const std::string& layer_prompt,
+                    int expected_rows, int expected_cols, int num_threads) {
+    auto layer = absl::make_unique<
+        csrblocksparse::SparseLinearLayer<WeightType, RhsType>>();
+    auto LoadLayer =
+        csrblocksparse::LoadSparseLayerFromBuffer<WeightType, RhsType,
+                                                  DiskWeightType>;
+    if (!LoadLayer(prefix, /*zipped=*/true, layer.get(), wavegru_buffer).ok()) {
+      fprintf(stderr, "Loading %s failed.\n", layer_prompt.c_str());
+      return nullptr;
+    }
+    fprintf(stdout, "%s Shape: [%d, %d]. Sparsity: %s\n", layer_prompt.c_str(),
+            layer->rows(), layer->cols(),
+            std::to_string(layer->sparsity()).c_str());
+
+    // Dimension checks for the loaded layer.
+    if ((expected_rows > 0 && layer->rows() != expected_rows) ||
+        (expected_cols > 0 && layer->cols() != expected_cols)) {
+      fprintf(
+          stderr,
+          "Dimension mismatch for %s. expecting [%d, %d], but is [%d, %d].\n",
+          layer_prompt.c_str(), expected_rows, expected_cols, layer->rows(),
+          layer->cols());
+      return nullptr;
+    }
+
+    if (layer->PrepareForThreads(num_threads) != num_threads) {
+      fprintf(stderr, "Failed to prepare %s for %d threads.\n",
+              layer_prompt.c_str(), num_threads);
+      return nullptr;
+    }
+    return layer;
+  }
+
   // Convenient method used in all subclass creation methods.
   static std::unique_ptr<csrblocksparse::SparseLinearLayer<WeightType, RhsType>>
   LoadAndCheckLayer(
@@ -93,8 +151,9 @@ class LayerWrapper : public LayerWrapperInterface<WeightType, RhsType,
           expected_rows, expected_cols, from_constant.sparsity,
           from_constant.value);
     }
-    fprintf(stderr, "%s Shape: [%d, %d]. Sparsity: %s\n", layer_prompt.c_str(),
-            layer->rows(), layer->cols(), std::to_string(layer->sparsity()).c_str());
+    fprintf(stdout, "%s Shape: [%d, %d]. Sparsity: %s\n", layer_prompt.c_str(),
+            layer->rows(), layer->cols(),
+            std::to_string(layer->sparsity()).c_str());
 
     // Dimension checks for the loaded layer.
     if ((expected_rows > 0 && layer->rows() != expected_rows) ||

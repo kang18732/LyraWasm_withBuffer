@@ -32,6 +32,7 @@
 #include "absl/time/time.h"
 #include "lyra_types.h"
 #include "sparse_matmul/sparse_matmul.h"
+#include "wavegru_buffer/wavegru_buffer_interface.h"
 
 namespace chromemedia {
 namespace codec {
@@ -113,6 +114,43 @@ class ProjectAndSample {
     }
   }
 
+  void LoadRaw(const WavegruBufferInterface& wavegru_buffer,
+               const std::string& prefix, bool zipped) {
+    // compiler gets confused by putting this inside CHECK, thinks it is
+    // multiple arguments to CHECK itself.
+    auto LoadLayer =
+        csrblocksparse::LoadSparseLayerFromBuffer<ProjWeightType, ProjRhsType,
+                                        DiskWeightType>;
+    if (!LoadLayer(prefix + "proj_", zipped, &proj_layer_, wavegru_buffer)
+             .ok()) {
+      exit(EXIT_FAILURE);
+    }
+    auto LoadMixLayer =
+        csrblocksparse::LoadLogitLayerFromBuffer<MixWeightType, ProjMatMulOutType,
+                                       DiskWeightType>;
+    if (!LoadMixLayer(prefix + "mix_", zipped, wavegru_buffer, &mix_layer_)
+             .ok()) {
+      exit(EXIT_FAILURE);
+    }
+
+    auto LoadMeanLayer =
+        csrblocksparse::LoadLogitLayerFromBuffer<MeanWeightType, ProjMatMulOutType,
+                                       DiskWeightType>;
+    if (!LoadMeanLayer(prefix + "means_", zipped, wavegru_buffer, &mean_layer_)
+             .ok()) {
+      exit(EXIT_FAILURE);
+    }
+
+    auto LoadScaleLayer =
+        csrblocksparse::LoadLogitLayerFromBuffer<ScaleWeightType, ProjMatMulOutType,
+                                       DiskWeightType>;
+    if (!LoadScaleLayer(prefix + "scales_", zipped, wavegru_buffer,
+                        &scale_layer_)
+             .ok()) {
+      exit(EXIT_FAILURE);
+    }
+  }
+
   ~ProjectAndSample() {}
 
   int PrepareForThreads(int num_threads) {
@@ -128,8 +166,8 @@ class ProjectAndSample {
       exit(EXIT_FAILURE);
     }
 
-    if (mix_layer_.PrepareForThreads(1) != 1 || mean_layer_.PrepareForThreads(
-                                                    1) != 1 ||
+    if (mix_layer_.PrepareForThreads(1) != 1 ||
+        mean_layer_.PrepareForThreads(1) != 1 ||
         scale_layer_.PrepareForThreads(1) != 1) {
       exit(EXIT_FAILURE);
     }
@@ -199,8 +237,8 @@ class ProjectAndSample {
     // vector with a value that will not disturb the softmax calculation.
     mixes_.FillWith(
         static_cast<MixMatMulOutType>(std::numeric_limits<float>::lowest()));
-    if (size != mix_layer_.cols() || size != mean_layer_.cols() || size !=
-                                                                    scale_layer_.cols()) {
+    if (size != mix_layer_.cols() || size != mean_layer_.cols() ||
+        size != scale_layer_.cols()) {
       exit(EXIT_FAILURE);
     }
     means_ = std::move(
@@ -212,7 +250,7 @@ class ProjectAndSample {
 
   void MolSamples(int tid, std::minstd_rand* thread_local_gen, int num_samples,
                   int* output_samples) {
-    //DCHECK_NE(output_samples, nullptr);
+    // DCHECK_NE(output_samples, nullptr);
     absl::Time t_start;
     if (time_components_) t_start = absl::Now();
     if (tid == 0) {

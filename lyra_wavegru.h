@@ -38,6 +38,7 @@
 #include "lyra_types.h"
 #include "project_and_sample.h"
 #include "sparse_matmul/sparse_matmul.h"
+#include "wavegru_buffer/wavegru_buffer_interface.h"
 
 namespace chromemedia {
 namespace codec {
@@ -129,6 +130,75 @@ class LyraWavegru {
         num_threads) {
       std::cerr << "Could not prepare project_and_sample for " << num_threads
                  << " threads." << std::endl;
+      return nullptr;
+    }
+    return absl::WrapUnique(new LyraWavegru<WeightTypeKind>(
+        num_threads, std::move(ar_to_gates_layer), std::move(gru_layer),
+        std::move(project_and_sample_layer)));
+  }
+
+  static std::unique_ptr<LyraWavegru<WeightTypeKind>> Create(
+      int num_threads, const WavegruBufferInterface& wavegru_buffer,
+      const std::string& prefix) {
+#if defined __aarch64__
+    std::cout
+        << "lyra_wavegru running fast multiplication kernels for aarch64.";
+#elif defined __AVX__
+    std::cout << "lyra_wavegru running fast multiplication kernels for AVX.";
+#else   // defined __AVX__
+    std::cout << "lyra_wavegru running in slow generic mode.";
+#endif  // defined __aarch64__
+
+    LayerParams ar_to_gates_params{.num_input_channels = kNumSplitBands,
+                                   .num_filters = 3 * kNumGruHiddens,
+                                   .length = 1,
+                                   .kernel_size = 1,
+                                   .dilation = 1,
+                                   .stride = 1,
+                                   .relu = false,
+                                   .skip_connection = false,
+                                   .type = LayerType::kConv1D,
+                                   .num_threads = num_threads,
+                                   .per_column_barrier = false,
+                                   .from =
+                                       LayerParams::FromDisk{
+                                           .path = "unused-path",
+                                           .zipped = true,
+                                       },
+                                   .prefix = prefix + "_ar_to_gates_"};
+    auto ar_to_gates_layer = ArLayerType::Create(ar_to_gates_params, wavegru_buffer);
+    if (ar_to_gates_layer == nullptr) {
+      return nullptr;
+    }
+
+    LayerParams gru_params{.num_input_channels = kNumGruHiddens,
+                           .num_filters = 3 * kNumGruHiddens,
+                           .length = 1,
+                           .kernel_size = 1,
+                           .dilation = 1,
+                           .stride = 1,
+                           .relu = false,
+                           .skip_connection = false,
+                           .type = LayerType::kConv1D,
+                           .num_threads = num_threads,
+                           .per_column_barrier = false,
+                           .from =
+                               LayerParams::FromDisk{
+                                   .path = "unused-path",
+                                   .zipped = true,
+                               },
+                           .prefix = prefix + "_gru_layer_"};
+    auto gru_layer = GruLayerType::Create(gru_params, wavegru_buffer);
+    if (gru_layer == nullptr) {
+      return nullptr;
+    }
+
+    auto project_and_sample_layer = absl::make_unique<ProjectAndSampleType>();
+    project_and_sample_layer->LoadRaw(wavegru_buffer, prefix + "_", /*zipped=*/true);
+    if (project_and_sample_layer->PrepareForThreads(num_threads) !=
+        num_threads) {
+      std::cerr << "Could not prepare project_and_sample for " << num_threads
+                << " threads." << std::endl;
       return nullptr;
     }
     return absl::WrapUnique(new LyraWavegru<WeightTypeKind>(

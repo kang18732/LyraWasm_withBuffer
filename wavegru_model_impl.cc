@@ -39,6 +39,32 @@
 namespace chromemedia {
 namespace codec {
 
+ std::unique_ptr<WavegruModelImpl> WavegruModelImpl::Create(
+     int num_samples_per_hop, int num_features, int num_frames_per_packet,
+     float silence_value, const WavegruBufferInterface& wavegru_buffer) {
+   const int kNumThreads = 1;
+   const int kNumCondHiddens = 512;
+   const std::string kModelPrefix = "lyra_16khz";
+
+   auto wavegru = LyraWavegru<ComputeType>::Create(
+       kNumThreads, wavegru_buffer, kModelPrefix);
+   if (wavegru == nullptr) {
+     fprintf(stderr, "Could not create wavegru model.\n");
+     return nullptr;
+   }
+
+   auto merge_filter = BufferMerger::Create(wavegru->num_split_bands());
+   if (merge_filter == nullptr) {
+     fprintf(stderr, "Could not create merge filter.\n");
+     return nullptr;
+   }
+   // WrapUnique is used because of private c'tor.
+   return absl::WrapUnique(new WavegruModelImpl(
+       wavegru_buffer, kModelPrefix, kNumThreads, num_features,
+       kNumCondHiddens, num_samples_per_hop, num_frames_per_packet,
+       silence_value, std::move(wavegru), std::move(merge_filter)));
+ }
+
 std::unique_ptr<WavegruModelImpl> WavegruModelImpl::Create(
     int num_samples_per_hop, int num_features, int num_frames_per_packet,
     float silence_value, const ghc::filesystem::path& model_path) {
@@ -83,13 +109,39 @@ WavegruModelImpl::WavegruModelImpl(
     band.reserve(num_samples_per_hop_ / wavegru_->num_split_bands());
   }
   background_threads_.reserve(num_threads - 1);
+  fprintf(stdout, "Feature size: %d\n", num_features);
+  fprintf(stdout, "Number of samples per hop: %d\n", num_samples_per_hop_);
+
+  conditioning_ = absl::make_unique<ConditioningType>(
+      num_features, num_cond_hiddens, wavegru_->num_gru_hiddens(),
+      num_samples_per_hop_, num_frames_per_packet,
+      /*num_threads=*/1, silence_value, model_path, model_prefix);
+}
+
+WavegruModelImpl::WavegruModelImpl(
+    const WavegruBufferInterface& wavegru_buffer,
+    const std::string& model_prefix, int num_threads, int num_features,
+    int num_cond_hiddens, int num_samples_per_hop, int num_frames_per_packet,
+    float silence_value, std::unique_ptr<LyraWavegru<ComputeType>> wavegru,
+    std::unique_ptr<BufferMerger> buffer_merger) :
+        num_threads_(num_threads),
+        num_samples_per_hop_(num_samples_per_hop),
+        model_split_samples_(wavegru->num_split_bands()),
+        wavegru_(std::move(wavegru)),
+        buffer_merger_(std::move(buffer_merger)) {
+
+
+  for (auto& band : model_split_samples_) {
+    band.reserve(num_samples_per_hop_ / wavegru_->num_split_bands());
+  }
+  background_threads_.reserve(num_threads - 1);
   fprintf(stderr, "Feature size: %d\n", num_features);
   fprintf(stderr, "Number of samples per hop: %d\n", num_samples_per_hop_);
 
   conditioning_ = absl::make_unique<ConditioningType>(
       num_features, num_cond_hiddens, wavegru_->num_gru_hiddens(),
       num_samples_per_hop_, num_frames_per_packet,
-      /*num_threads=*/1, silence_value, model_path, model_prefix);
+      /*num_threads=*/1, silence_value, wavegru_buffer, model_prefix);
 }
 
 WavegruModelImpl::~WavegruModelImpl() {
@@ -123,7 +175,8 @@ absl::optional<std::vector<int16_t>> WavegruModelImpl::GenerateSamples(
   if (background_threads_.empty() && num_threads_ > 1) {
     // |tid| = 0 is reserved for the main thread which will be returned to the
     // caller.
-    fprintf(stderr, "Starting %d background threads for wavegru.\n", num_threads_ - 1);
+    fprintf(stderr, "Starting %d background threads for wavegru.\n",
+            num_threads_ - 1);
     for (int tid = 1; tid < num_threads_; ++tid) {
       auto f = [&, tid]() {
         wavegru_->SampleThreaded(tid, conditioning_.get(),

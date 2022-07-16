@@ -29,6 +29,7 @@
 #include "include/ghc/filesystem.hpp"
 #include "packet_interface.h"
 #include "vector_quantizer_interface.h"
+#include "wavegru_buffer/wavegru_buffer_interface.h"
 
 namespace chromemedia {
 namespace codec {
@@ -36,6 +37,10 @@ namespace codec {
 std::unique_ptr<VectorQuantizerInterface> CreateQuantizer(
     int num_output_features, int num_bits,
     const ghc::filesystem::path& model_path);
+
+std::unique_ptr<VectorQuantizerInterface> CreateQuantizer(
+    int num_output_features, int num_bits,
+    const WavegruBufferInterface& wavegru_buffer);
 
 std::unique_ptr<VectorQuantizerInterface> CreateQuantizer(
     int num_features, int num_bits, const Eigen::RowVectorXf& mean_vector,
@@ -46,6 +51,10 @@ std::unique_ptr<VectorQuantizerInterface> CreateQuantizer(
 std::unique_ptr<GenerativeModelInterface> CreateGenerativeModel(
     int num_samples_per_hop, int num_output_features, int num_frames_per_packet,
     const ghc::filesystem::path& model_path);
+
+std::unique_ptr<GenerativeModelInterface> CreateGenerativeModel(
+    int num_samples_per_hop, int num_output_features, int num_frames_per_packet,
+    const WavegruBufferInterface& wavegru_buffer);
 
 std::unique_ptr<FeatureExtractorInterface> CreateFeatureExtractor(
     int sample_rate_hz, int num_features, int num_samples_per_hop,

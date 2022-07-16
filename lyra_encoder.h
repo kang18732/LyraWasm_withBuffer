@@ -32,6 +32,7 @@
 #include "packet_interface.h"
 #include "resampler_interface.h"
 #include "vector_quantizer_interface.h"
+#include "wavegru_buffer/wavegru_buffer_interface.h"
 
 namespace chromemedia {
 namespace codec {
@@ -63,6 +64,10 @@ class LyraEncoder : public LyraEncoderInterface {
   static std::unique_ptr<LyraEncoder> Create(
       int sample_rate_hz, int num_channels, int bitrate, bool enable_dtx,
       const ghc::filesystem::path& model_path);
+
+  static std::unique_ptr<LyraEncoder> Create(
+      int sample_rate_hz, int num_channels, int bitrate, bool enable_dtx,
+      const WavegruBufferInterface& wavegru_buffer);
 
   /// Encodes the audio samples into a vector wrapped byte array.
   ///

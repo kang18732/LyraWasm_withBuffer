@@ -60,6 +60,7 @@ cc_library(
         ":layer",
         ":matrix",
         ":status",
+        "//wavegru_buffer:wavegru_buffer_interface",
         "//sparse_matmul/numerics:types",
         "//sparse_matmul/vector:cache_aligned_vector",
         "//sparse_matmul/zlib_wrapper",
