@@ -494,10 +494,10 @@ TEST_P(LyraEncoderTest, CreationFromBuffersSucceeds) {
       fread(codebook_dimensions_buffer, sizeof(char), 100, f4);
 
   std::unordered_map<std::string, std::pair<uint64_t, const char*>> models_map =
-      {{"quant_mean_vectors.gz", {mean_vectors_buffer_size, mean_vectors_buffer}},
-       {"quant_transmat.gz", {transmat_buffer_size, transmat_buffer}},
-       {"quant_code_vectors.gz", {code_vectors_buffer_size, code_vectors_buffer}},
-       {"quant_codebook_dimensions.gz",
+      {{"lyra_16khz_quant_mean_vectors.gz", {mean_vectors_buffer_size, mean_vectors_buffer}},
+       {"lyra_16khz_quant_transmat.gz", {transmat_buffer_size, transmat_buffer}},
+       {"lyra_16khz_quant_code_vectors.gz", {code_vectors_buffer_size, code_vectors_buffer}},
+       {"lyra_16khz_quant_codebook_dimensions.gz",
         {codebook_dimensions_buffer_size, codebook_dimensions_buffer}}};
 
   EXPECT_NE(nullptr,
@@ -509,6 +509,16 @@ TEST_P(LyraEncoderTest, CreationFromBuffersSucceeds) {
             LyraEncoder::Create(
                 sample_rate_hz_, kNumChannels, kBitrate,
                 /*enable_dtx=*/true, SimpleWavegruBuffer(models_map)));
+
+  auto encoder = LyraEncoder::Create(
+      sample_rate_hz_, kNumChannels, kBitrate,
+      /*enable_dtx=*/false, SimpleWavegruBuffer(models_map));
+
+  std::vector<int16_t> too_few_samples(48000, 23);
+
+  auto encode_result = encoder->Encode(too_few_samples);
+  EXPECT_TRUE(encode_result.has_value());
+  EXPECT_EQ(encode_result.value().size(), 0u);
 }
 
 TEST_P(LyraEncoderTest, BadCreationParametersReturnNullptr) {

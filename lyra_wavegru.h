@@ -292,7 +292,7 @@ class LyraWavegru {
   }
 
   void InitLoadedLayers() {
-    std::cout << "Model size: " << ModelSize() << " bytes";
+    std::cout << "Model size: " << ModelSize() << " bytes" << std::endl;
     // Working space for activations.
     ar_output_buffer_ = csrblocksparse::CacheAlignedVector<ArOutputType>(
         ar_to_gates_layer_->rows());

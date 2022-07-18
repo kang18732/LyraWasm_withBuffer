@@ -34,8 +34,8 @@ exports_files(
 WASM_LINKOPTS = [
  "--bind",
  "-sFETCH",
-# "-sEXPORT_ES6=1",
-# "-sMODULARIZE=1",
+ "-sEXPORT_ES6=1",
+ "-sMODULARIZE=1",
  "-sEXPORT_ALL=1",
  "-s ALLOW_MEMORY_GROWTH=1",
  "-s NO_EXIT_RUNTIME=1",
@@ -163,7 +163,8 @@ cc_library(
     srcs = ["encode_and_decode_lib.cc"],
     hdrs = ["encode_and_decode_lib.h"],
     data = [
-        "//testdata:48khz_sample_000003.wav"
+        "//testdata:48khz_sample_000003.wav",
+        "//testdata:48khz_playback.wav"
     ],
     deps = [
         ":lyra_encoder",
@@ -178,6 +179,16 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "encode_and_decode_lib_test",
+    srcs = ["encode_and_decode_lib_test.cc"],
+    deps = [
+        ":encode_and_decode_lib",
+        ":runfiles_util",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -1242,7 +1253,6 @@ cc_test(
     name = "lyra_encoder_test",
     size = "small",
     srcs = ["lyra_encoder_test.cc"],
-    shard_count = 8,
     deps = [
         ":denoiser_interface",
         ":feature_extractor_interface",

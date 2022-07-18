@@ -75,56 +75,57 @@ class WebassemblyWavegruBuffer
 };
 
 // Buffer for wavegru models.
-WebassemblyWavegruBuffer wavegru_buffer({"lyra_16khz_ar_to_gates_bias.raw.gz",
-                                         "lyra_16khz_ar_to_gates_mask.raw.gz",
-                                         "lyra_16khz_ar_to_gates_weights.raw.gz",
-                                         "lyra_16khz_conditioning_stack_0_bias.raw.gz",
-                                         "lyra_16khz_conditioning_stack_0_mask.raw.gz",
-                                         "lyra_16khz_conditioning_stack_0_weights.raw.gz",
-                                         "lyra_16khz_conditioning_stack_1_bias.raw.gz",
-                                         "lyra_16khz_conditioning_stack_1_mask.raw.gz",
-                                         "lyra_16khz_conditioning_stack_1_weights.raw.gz",
-                                         "lyra_16khz_conditioning_stack_2_bias.raw.gz",
-                                         "lyra_16khz_conditioning_stack_2_mask.raw.gz",
-                                         "lyra_16khz_conditioning_stack_2_weights.raw.gz",
-                                         "lyra_16khz_conv1d_bias.raw.gz",
-                                         "lyra_16khz_conv1d_mask.raw.gz",
-                                         "lyra_16khz_conv1d_weights.raw.gz",
-                                         "lyra_16khz_conv_cond_bias.raw.gz",
-                                         "lyra_16khz_conv_cond_mask.raw.gz",
-                                         "lyra_16khz_conv_cond_weights.raw.gz",
-                                         "lyra_16khz_conv_to_gates_bias.raw.gz",
-                                         "lyra_16khz_conv_to_gates_mask.raw.gz",
-                                         "lyra_16khz_conv_to_gates_weights.raw.gz",
-                                         "lyra_16khz_gru_layer_bias.raw.gz",
-                                         "lyra_16khz_gru_layer_mask.raw.gz",
-                                         "lyra_16khz_gru_layer_weights.raw.gz",
-                                         "lyra_16khz_means_bias.raw.gz",
-                                         "lyra_16khz_means_mask.raw.gz",
-                                         "lyra_16khz_means_weights.raw.gz",
-                                         "lyra_16khz_mix_bias.raw.gz",
-                                         "lyra_16khz_mix_mask.raw.gz",
-                                         "lyra_16khz_mix_weights.raw.gz",
-                                         "lyra_16khz_proj_bias.raw.gz",
-                                         "lyra_16khz_proj_mask.raw.gz",
-                                         "lyra_16khz_proj_weights.raw.gz",
-                                         "lyra_16khz_quant_codebook_dimensions.gz",
-                                         "lyra_16khz_quant_code_vectors.gz",
-                                         "lyra_16khz_quant_mean_vectors.gz",
-                                         "lyra_16khz_quant_transmat.gz",
-                                         "lyra_16khz_scales_bias.raw.gz",
-                                         "lyra_16khz_scales_mask.raw.gz",
-                                         "lyra_16khz_scales_weights.raw.gz",
-                                         "lyra_16khz_transpose_0_bias.raw.gz",
-                                         "lyra_16khz_transpose_0_mask.raw.gz",
-                                         "lyra_16khz_transpose_0_weights.raw.gz",
-                                         "lyra_16khz_transpose_1_bias.raw.gz",
-                                         "lyra_16khz_transpose_1_mask.raw.gz",
-                                         "lyra_16khz_transpose_1_weights.raw.gz",
-                                         "lyra_16khz_transpose_2_bias.raw.gz",
-                                         "lyra_16khz_transpose_2_mask.raw.gz",
-                                         "lyra_16khz_transpose_2_weights.raw.gz"},
-                                        "wavegru/");
+WebassemblyWavegruBuffer wavegru_buffer(
+    {"lyra_16khz_ar_to_gates_bias.raw.gz",
+     "lyra_16khz_ar_to_gates_mask.raw.gz",
+     "lyra_16khz_ar_to_gates_weights.raw.gz",
+     "lyra_16khz_conditioning_stack_0_bias.raw.gz",
+     "lyra_16khz_conditioning_stack_0_mask.raw.gz",
+     "lyra_16khz_conditioning_stack_0_weights.raw.gz",
+     "lyra_16khz_conditioning_stack_1_bias.raw.gz",
+     "lyra_16khz_conditioning_stack_1_mask.raw.gz",
+     "lyra_16khz_conditioning_stack_1_weights.raw.gz",
+     "lyra_16khz_conditioning_stack_2_bias.raw.gz",
+     "lyra_16khz_conditioning_stack_2_mask.raw.gz",
+     "lyra_16khz_conditioning_stack_2_weights.raw.gz",
+     "lyra_16khz_conv1d_bias.raw.gz",
+     "lyra_16khz_conv1d_mask.raw.gz",
+     "lyra_16khz_conv1d_weights.raw.gz",
+     "lyra_16khz_conv_cond_bias.raw.gz",
+     "lyra_16khz_conv_cond_mask.raw.gz",
+     "lyra_16khz_conv_cond_weights.raw.gz",
+     "lyra_16khz_conv_to_gates_bias.raw.gz",
+     "lyra_16khz_conv_to_gates_mask.raw.gz",
+     "lyra_16khz_conv_to_gates_weights.raw.gz",
+     "lyra_16khz_gru_layer_bias.raw.gz",
+     "lyra_16khz_gru_layer_mask.raw.gz",
+     "lyra_16khz_gru_layer_weights.raw.gz",
+     "lyra_16khz_means_bias.raw.gz",
+     "lyra_16khz_means_mask.raw.gz",
+     "lyra_16khz_means_weights.raw.gz",
+     "lyra_16khz_mix_bias.raw.gz",
+     "lyra_16khz_mix_mask.raw.gz",
+     "lyra_16khz_mix_weights.raw.gz",
+     "lyra_16khz_proj_bias.raw.gz",
+     "lyra_16khz_proj_mask.raw.gz",
+     "lyra_16khz_proj_weights.raw.gz",
+     "lyra_16khz_quant_codebook_dimensions.gz",
+     "lyra_16khz_quant_code_vectors.gz",
+     "lyra_16khz_quant_mean_vectors.gz",
+     "lyra_16khz_quant_transmat.gz",
+     "lyra_16khz_scales_bias.raw.gz",
+     "lyra_16khz_scales_mask.raw.gz",
+     "lyra_16khz_scales_weights.raw.gz",
+     "lyra_16khz_transpose_0_bias.raw.gz",
+     "lyra_16khz_transpose_0_mask.raw.gz",
+     "lyra_16khz_transpose_0_weights.raw.gz",
+     "lyra_16khz_transpose_1_bias.raw.gz",
+     "lyra_16khz_transpose_1_mask.raw.gz",
+     "lyra_16khz_transpose_1_weights.raw.gz",
+     "lyra_16khz_transpose_2_bias.raw.gz",
+     "lyra_16khz_transpose_2_mask.raw.gz",
+     "lyra_16khz_transpose_2_weights.raw.gz"},
+    "wavegru/");
 
 void downloadSucceeded(emscripten_fetch_t* fetch) {
   const char* model_name = static_cast<char*>(fetch->userData);
@@ -186,24 +187,33 @@ void CreateDecoder() {
   }
 }
 
-void EncodeAndDecodeWithLyra(uintptr_t data, uint32_t num_samples,
+bool EncodeAndDecodeWithLyra(uintptr_t data, uint32_t num_samples,
                              uint32_t sample_rate_hz, uintptr_t out_data) {
-  fprintf(stdout, "EncodeAndDecode called.\n");
+  fprintf(stdout, "EncodeAndDecode called with %d samples.\n", num_samples);
   float* data_buffer = reinterpret_cast<float*>(data);
 
   // Convert the float input data to int16_t.
   std::vector<int16_t> data_to_encode(num_samples);
   std::transform(data_buffer, data_buffer + num_samples, data_to_encode.begin(),
-                 [](float x) { return static_cast<int16_t>(x * 32768.0f); });
+                 [](float x) { return static_cast<int16_t>(x * 32767.0f); });
+  fprintf(stdout, "The first sample (converted to int16_t) is %d.\n", data_to_encode[0]);
   std::copy(data_buffer, data_buffer + num_samples, data_to_encode.begin());
 
   auto maybe_decoded_output = chromemedia::codec::EncodeAndDecode(
       encoder.get(), decoder.get(), data_to_encode, sample_rate_hz,
-      /*bitrate=*/3200, /*packet_loss_rate=*/0.f,
+      /*packet_loss_rate=*/0.f,
       /*float_average_burst_length=*/1.f);
   if (!maybe_decoded_output.has_value()) {
     fprintf(stderr, "Failed to encode and decode.\n");
-    return;
+    return false;
+  }
+
+  if (maybe_decoded_output.value().empty()) {
+    fprintf(stderr,
+            "No decoded output. The number of samples sent for encode and "
+            "decode (%d) was probably too small.\n",
+            num_samples);
+    return false;
   }
 
   // Convert decode output to float.
@@ -211,12 +221,17 @@ void EncodeAndDecodeWithLyra(uintptr_t data, uint32_t num_samples,
   std::vector<float> decoded_output(num_decoded_samples);
   std::transform(maybe_decoded_output.value().begin(),
                  maybe_decoded_output.value().end(), decoded_output.begin(),
-                 [](int16_t x) { return static_cast<float>(x) / 32768.0f; });
+                 [](int16_t x) { return x / 32767.0f; });
   float* out_data_buffer = reinterpret_cast<float*>(out_data);
   for (int i = 0; i < num_decoded_samples; i++) {
     *(out_data_buffer + i) = decoded_output[i];
   }
+  fprintf(stdout, "Encode and decode succeeded. Returning %d samples.\n",
+          decoded_output.size());
+  return true;
 }
+
+bool IsCodecReady() { return encoder != nullptr && decoder != nullptr; }
 
 int main(int argc, char* argv[]) {
   InitializeCodec();
@@ -224,6 +239,7 @@ int main(int argc, char* argv[]) {
 }
 
 EMSCRIPTEN_BINDINGS(module) {
+  emscripten::function("isCodecReady", IsCodecReady);
   emscripten::function("encodeAndDecode", EncodeAndDecodeWithLyra,
                        emscripten::allow_raw_pointers());
 }
