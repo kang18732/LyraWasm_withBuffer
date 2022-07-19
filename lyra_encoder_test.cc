@@ -509,16 +509,6 @@ TEST_P(LyraEncoderTest, CreationFromBuffersSucceeds) {
             LyraEncoder::Create(
                 sample_rate_hz_, kNumChannels, kBitrate,
                 /*enable_dtx=*/true, SimpleWavegruBuffer(models_map)));
-
-  auto encoder = LyraEncoder::Create(
-      sample_rate_hz_, kNumChannels, kBitrate,
-      /*enable_dtx=*/false, SimpleWavegruBuffer(models_map));
-
-  std::vector<int16_t> too_few_samples(48000, 23);
-
-  auto encode_result = encoder->Encode(too_few_samples);
-  EXPECT_TRUE(encode_result.has_value());
-  EXPECT_EQ(encode_result.value().size(), 0u);
 }
 
 TEST_P(LyraEncoderTest, BadCreationParametersReturnNullptr) {

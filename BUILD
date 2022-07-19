@@ -51,6 +51,25 @@ cc_binary(
     ":lyra_decoder",],
 )
 
+cc_library(
+    name = "webassembly_codec_wrapper_lib",
+    hdrs = ["webassembly_codec_wrapper.h"],
+    deps = [":lyra_encoder",
+    ":encode_and_decode_lib",
+    ":lyra_decoder",],
+    )
+
+cc_test(
+    name = "webassembly_codec_wrapper_test",
+    srcs = ["webassembly_codec_wrapper_test.cc"],
+    deps = [":webassembly_codec_wrapper_lib",
+     ":runfiles_util",
+     ":wav_util",
+            "@com_google_googletest//:gtest_main",
+    ],
+
+)
+
 wasm_cc_binary(
     name = "webassembly_codec",
     cc_target = ":webassembly_codec_wrapper",

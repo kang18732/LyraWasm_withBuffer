@@ -135,8 +135,8 @@ WavegruModelImpl::WavegruModelImpl(
     band.reserve(num_samples_per_hop_ / wavegru_->num_split_bands());
   }
   background_threads_.reserve(num_threads - 1);
-  fprintf(stderr, "Feature size: %d\n", num_features);
-  fprintf(stderr, "Number of samples per hop: %d\n", num_samples_per_hop_);
+  fprintf(stdout, "Feature size: %d\n", num_features);
+  fprintf(stdout, "Number of samples per hop: %d\n", num_samples_per_hop_);
 
   conditioning_ = absl::make_unique<ConditioningType>(
       num_features, num_cond_hiddens, wavegru_->num_gru_hiddens(),

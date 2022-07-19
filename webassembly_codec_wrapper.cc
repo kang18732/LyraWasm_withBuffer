@@ -167,7 +167,7 @@ void CreateEncoder() {
       /*sample_rate_hz=*/48000,
       /*num_channels=*/1,
       /*bitrate=*/3000,
-      /*enable_dtx=*/true, wavegru_buffer);
+      /*enable_dtx=*/false, wavegru_buffer);
   if (encoder == nullptr) {
     fprintf(stderr, "Failed to create encoder.\n");
   } else {
@@ -190,14 +190,13 @@ void CreateDecoder() {
 bool EncodeAndDecodeWithLyra(uintptr_t data, uint32_t num_samples,
                              uint32_t sample_rate_hz, uintptr_t out_data) {
   fprintf(stdout, "EncodeAndDecode called with %d samples.\n", num_samples);
-  float* data_buffer = reinterpret_cast<float*>(data);
 
   // Convert the float input data to int16_t.
+  float* data_ptr = reinterpret_cast<float*>(data);
   std::vector<int16_t> data_to_encode(num_samples);
-  std::transform(data_buffer, data_buffer + num_samples, data_to_encode.begin(),
-                 [](float x) { return static_cast<int16_t>(x * 32767.0f); });
-  fprintf(stdout, "The first sample (converted to int16_t) is %d.\n", data_to_encode[0]);
-  std::copy(data_buffer, data_buffer + num_samples, data_to_encode.begin());
+  for (int i = 0; i < num_samples; i++) {
+    data_to_encode[i] = static_cast<int16_t>(data_ptr[i] * 32767.0f);
+  }
 
   auto maybe_decoded_output = chromemedia::codec::EncodeAndDecode(
       encoder.get(), decoder.get(), data_to_encode, sample_rate_hz,
@@ -216,18 +215,16 @@ bool EncodeAndDecodeWithLyra(uintptr_t data, uint32_t num_samples,
     return false;
   }
 
-  // Convert decode output to float.
+  // Convert the decoded output to float.
   const int num_decoded_samples = maybe_decoded_output.value().size();
-  std::vector<float> decoded_output(num_decoded_samples);
-  std::transform(maybe_decoded_output.value().begin(),
-                 maybe_decoded_output.value().end(), decoded_output.begin(),
-                 [](int16_t x) { return x / 32767.0f; });
-  float* out_data_buffer = reinterpret_cast<float*>(out_data);
+  float* out_data_ptr = reinterpret_cast<float*>(out_data);
+  const std::vector<int16_t>& decoded_output = maybe_decoded_output.value();
   for (int i = 0; i < num_decoded_samples; i++) {
-    *(out_data_buffer + i) = decoded_output[i];
+    out_data_ptr[i] = static_cast<float>(decoded_output[i] / 32767.0f);
   }
+
   fprintf(stdout, "Encode and decode succeeded. Returning %d samples.\n",
-          decoded_output.size());
+          num_decoded_samples);
   return true;
 }
 

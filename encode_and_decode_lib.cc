@@ -59,11 +59,8 @@ std::optional<std::vector<uint8_t>> EncodeWithEncoder(
           absl::ToInt64Seconds(elapsed));
   fprintf(stdout, "Encoding samples per second %f.\n",
           wav_data.size() / absl::ToDoubleSeconds(elapsed));
-  fprintf(stdout, "Encoded features size %d.\n", encoded_features.size());
-  if (!encoded_features.empty()) {
-    fprintf(stdout, "The first encoded feature has value %d\n",
-            encoded_features[0]);
-  }
+  fprintf(stdout, "Encoded the given samples into %d uint8_t features.\n",
+          encoded_features.size());
   return encoded_features;
 }
 
@@ -117,11 +114,8 @@ std::optional<std::vector<int16_t>> DecodeWithDecoder(
   std::cout << "INFO: Decoding samples per second : "
             << decoded_audio.size() / absl::ToDoubleSeconds(decode_elapsed)
             << std::endl;
-  fprintf(stdout, "Output from decoder has number of samples %ld\n",
+  fprintf(stdout, "Output from decoder has %ld samples.\n",
           decoded_audio.size());
-  if (!decoded_audio.empty()) {
-    fprintf(stdout, "The first output sample is %d\n", decoded_audio[0]);
-  }
   return decoded_audio;
 }
 
@@ -182,7 +176,7 @@ bool End2End(const std::string& input_filename,
   }
 
   std::vector<int16_t> data_to_encode(read_wav_result->samples.begin(),
-                                      read_wav_result->samples.begin() + 49920);
+                                      read_wav_result->samples.end());
 
   auto output_or =
       EncodeAndDecode(encoder.get(), decoder.get(), data_to_encode,
