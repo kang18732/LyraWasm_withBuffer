@@ -12,11 +12,22 @@
 std::unique_ptr<chromemedia::codec::LyraEncoder> encoder;
 std::unique_ptr<chromemedia::codec::LyraDecoder> decoder;
 
+std::unique_ptr<chromemedia::codec::LyraEncoder> encoder_32khz;
+std::unique_ptr<chromemedia::codec::LyraDecoder> decoder_32khz;
+
+std::unique_ptr<chromemedia::codec::LyraEncoder> encoder_16khz;
+std::unique_ptr<chromemedia::codec::LyraDecoder> decoder_16khz;
+
+std::unique_ptr<chromemedia::codec::LyraEncoder> encoder_8khz;
+std::unique_ptr<chromemedia::codec::LyraDecoder> decoder_8khz;
+
 std::atomic<int8_t> FETCHED_MODEL_COUNT(0);
 
 // Forward declaration of encoder and decoder creator fucntions.
 void CreateEncoder();
 void CreateDecoder();
+bool encoders_initialized = false;
+bool decoders_initialized = false;
 
 void asyncDownload(const std::string& url, const std::string& model_name);
 
@@ -168,10 +179,33 @@ void CreateEncoder() {
       /*num_channels=*/1,
       /*bitrate=*/3000,
       /*enable_dtx=*/false, wavegru_buffer);
-  if (encoder == nullptr) {
-    fprintf(stderr, "Failed to create encoder.\n");
+
+  // Create encoders at different sample rates because the input audio sample
+  // rate is not know at this time.
+  encoder_16khz = chromemedia::codec::LyraEncoder::Create(
+      /*sample_rate_hz=*/16000,
+      /*num_channels=*/1,
+      /*bitrate=*/3000,
+      /*enable_dtx=*/false, wavegru_buffer);
+
+  encoder_32khz = chromemedia::codec::LyraEncoder::Create(
+      /*sample_rate_hz=*/32000,
+      /*num_channels=*/1,
+      /*bitrate=*/3000,
+      /*enable_dtx=*/false, wavegru_buffer);
+
+  encoder_8khz = chromemedia::codec::LyraEncoder::Create(
+      /*sample_rate_hz=*/8000,
+      /*num_channels=*/1,
+      /*bitrate=*/3000,
+      /*enable_dtx=*/false, wavegru_buffer);
+
+  if (encoder == nullptr || encoder_32khz == nullptr ||
+      encoder_16khz == nullptr || encoder_8khz == nullptr) {
+    fprintf(stderr, "Failed to create encoders.\n");
   } else {
-    fprintf(stdout, "Successfully created encoder!\n");
+    fprintf(stdout, "Successfully created encoders!\n");
+    encoders_initialized = true;
   }
 }
 
@@ -180,16 +214,56 @@ void CreateDecoder() {
       /*sample_rate_hz=*/48000,
       /*num_channels=*/1,
       /*bitrate=*/3000, wavegru_buffer);
-  if (decoder == nullptr) {
-    fprintf(stderr, "Failed to create decoder.\n");
+
+  decoder_16khz = chromemedia::codec::LyraDecoder::Create(
+      /*sample_rate_hz=*/16000,
+      /*num_channels=*/1,
+      /*bitrate=*/3000, wavegru_buffer);
+
+  decoder_32khz = chromemedia::codec::LyraDecoder::Create(
+      /*sample_rate_hz=*/32000,
+      /*num_channels=*/1,
+      /*bitrate=*/3000, wavegru_buffer);
+
+  decoder_8khz = chromemedia::codec::LyraDecoder::Create(
+      /*sample_rate_hz=*/8000,
+      /*num_channels=*/1,
+      /*bitrate=*/3000, wavegru_buffer);
+
+  if (decoder == nullptr || decoder_32khz == nullptr ||
+      decoder_16khz == nullptr || decoder_8khz == nullptr) {
+    fprintf(stderr, "Failed to create decoders.\n");
   } else {
-    fprintf(stdout, "Successfully created decoder!\n");
+    fprintf(stdout, "Successfully created decoders!\n");
+    decoders_initialized = true;
   }
 }
 
 bool EncodeAndDecodeWithLyra(uintptr_t data, uint32_t num_samples,
                              uint32_t sample_rate_hz, uintptr_t out_data) {
   fprintf(stdout, "EncodeAndDecode called with %d samples.\n", num_samples);
+
+  chromemedia::codec::LyraEncoder* encoder_to_use = nullptr;
+  chromemedia::codec::LyraDecoder* decoder_to_use = nullptr;
+  if (sample_rate_hz == 48000) {
+    encoder_to_use = encoder.get();
+    decoder_to_use = decoder.get();
+  } else if (sample_rate_hz == 16000) {
+    encoder_to_use = encoder_16khz.get();
+    decoder_to_use = decoder_16khz.get();
+  } else if (sample_rate_hz == 32000) {
+    encoder_to_use = encoder_32khz.get();
+    decoder_to_use = decoder_32khz.get();
+  } else if (sample_rate_hz == 8000) {
+    encoder_to_use = encoder_8khz.get();
+    decoder_to_use = decoder_8khz.get();
+  } else {
+    fprintf(stderr,
+            "Unsupported sample rate: %d. Only %d, %d, %d and %d khz sample "
+            "rates are supported.\n",
+            sample_rate_hz, 48000, 16000, 32000, 8000);
+    return false;
+  }
 
   // Convert the float input data to int16_t.
   float* data_ptr = reinterpret_cast<float*>(data);
@@ -199,7 +273,7 @@ bool EncodeAndDecodeWithLyra(uintptr_t data, uint32_t num_samples,
   }
 
   auto maybe_decoded_output = chromemedia::codec::EncodeAndDecode(
-      encoder.get(), decoder.get(), data_to_encode, sample_rate_hz,
+      encoder_to_use, decoder_to_use, data_to_encode, sample_rate_hz,
       /*packet_loss_rate=*/0.f,
       /*float_average_burst_length=*/1.f);
   if (!maybe_decoded_output.has_value()) {
@@ -228,7 +302,7 @@ bool EncodeAndDecodeWithLyra(uintptr_t data, uint32_t num_samples,
   return true;
 }
 
-bool IsCodecReady() { return encoder != nullptr && decoder != nullptr; }
+bool IsCodecReady() { return encoders_initialized && decoders_initialized; }
 
 int main(int argc, char* argv[]) {
   InitializeCodec();
