@@ -302,6 +302,99 @@ bool EncodeAndDecodeWithLyra(uintptr_t data, uint32_t num_samples,
   return true;
 }
 
+std::vector<uint8_t> EncodeWithLyra(uintptr_t data, uint32_t num_samples,
+                             uint32_t sample_rate_hz) {
+  fprintf(stdout, "Encode called with %d samples.\n", num_samples);
+
+  chromemedia::codec::LyraEncoder* encoder_to_use = nullptr;
+  if (sample_rate_hz == 48000) {
+    encoder_to_use = encoder.get();
+  } else if (sample_rate_hz == 16000) {
+    encoder_to_use = encoder_16khz.get();
+  } else if (sample_rate_hz == 32000) {
+    encoder_to_use = encoder_32khz.get();
+  } else if (sample_rate_hz == 8000) {
+    encoder_to_use = encoder_8khz.get();
+  }
+  else {
+    fprintf(stderr,
+            "Unsupported sample rate: %d. Only %d, %d, %d and %d khz sample "
+            "rates are supported.\n",
+            sample_rate_hz, 48000, 16000, 32000, 8000);
+    return std::vector<uint8_t>();
+  }
+
+  // Convert the float input data to int16_t.
+  float* data_ptr = reinterpret_cast<float*>(data);
+  std::vector<int16_t> data_to_encode(num_samples);
+  for (int i = 0; i < num_samples; i++) {
+    data_to_encode[i] = static_cast<int16_t>(data_ptr[i] * 32767.0f);
+  }
+
+  auto maybe_encoded_output = chromemedia::codec::EncodeWithEncoder(
+      encoder_to_use, data_to_encode, sample_rate_hz);
+  if (!maybe_encoded_output.has_value()) {
+    fprintf(stderr, "Failed to encode.\n");
+    return std::vector<uint8_t>();
+  }
+
+  return maybe_encoded_output.value();
+}
+
+bool DecodeWithLyra(emscripten::val encoded_data, uint32_t num_samples,
+                             uint32_t sample_rate_hz, uintptr_t out_data) {
+  fprintf(stdout, "Decode called with %d samples.\n", num_samples);
+
+  chromemedia::codec::LyraDecoder* decoder_to_use = nullptr;
+  if (sample_rate_hz == 48000) {
+    decoder_to_use = decoder.get();
+  } else if (sample_rate_hz == 16000) {
+    decoder_to_use = decoder_16khz.get();
+  } else if (sample_rate_hz == 32000) {
+    decoder_to_use = decoder_32khz.get();
+  } else if (sample_rate_hz == 8000) {
+    decoder_to_use = decoder_8khz.get();
+  }
+  else {
+    fprintf(stderr,
+            "Unsupported sample rate: %d. Only %d, %d, %d and %d khz sample "
+            "rates are supported.\n",
+            sample_rate_hz, 48000, 16000, 32000, 8000);
+    return false;
+  }
+
+  std::vector<uint8_t> data = emscripten::convertJSArrayToNumberVector<uint8_t>(encoded_data);
+
+  auto maybe_decoded_output = chromemedia::codec::DecodeWithDecoder(
+      decoder_to_use, data,
+      /*packet_loss_rate=*/0.f,
+      /*float_average_burst_length=*/1.f);
+  if (!maybe_decoded_output.has_value()) {
+    fprintf(stderr, "Failed to encode and decode.\n");
+    return false;
+  }
+
+  if (maybe_decoded_output.value().empty()) {
+    fprintf(stderr,
+            "No decoded output. The number of samples sent for encode and "
+            "decode (%d) was probably too small.\n",
+            num_samples);
+    return false;
+  }
+
+  // Convert the decoded output to float.
+  const int num_decoded_samples = maybe_decoded_output.value().size();
+  float* out_data_ptr = reinterpret_cast<float*>(out_data);
+  const std::vector<int16_t>& decoded_output = maybe_decoded_output.value();
+  for (int i = 0; i < num_decoded_samples; i++) {
+    out_data_ptr[i] = static_cast<float>(decoded_output[i] / 32767.0f);
+  }
+
+  fprintf(stdout, "Decode succeeded. Returning %d samples.\n",
+          num_decoded_samples);
+  return true;
+}
+
 bool IsCodecReady() { return encoders_initialized && decoders_initialized; }
 
 int main(int argc, char* argv[]) {
@@ -313,4 +406,10 @@ EMSCRIPTEN_BINDINGS(module) {
   emscripten::function("isCodecReady", IsCodecReady);
   emscripten::function("encodeAndDecode", EncodeAndDecodeWithLyra,
                        emscripten::allow_raw_pointers());
+  emscripten::function("EncodeWithLyra", EncodeWithLyra,
+                       emscripten::allow_raw_pointers());
+  emscripten::function("DecodeWithLyra", DecodeWithLyra,
+                       emscripten::allow_raw_pointers());
+
+  emscripten::register_vector<uint8_t>("vector<uint8_t>");
 }
